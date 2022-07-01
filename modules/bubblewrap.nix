@@ -27,6 +27,12 @@ in {
       default = [];
     };
 
+    bind.dev = mkOption {
+      description = "Devices to bind-mount into the sandbox.";
+      type = with types; listOf envPathType;
+      default = [];
+    };
+
     package = mkOption {
       description = "Bubblewrap package to use.";
       type = types.package;

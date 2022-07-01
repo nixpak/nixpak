@@ -21,10 +21,12 @@ let
 
   bind = path: let p = coerceToEnv path; in [ "--bind" p p ];
   bindRo = path: let p = coerceToEnv path; in [ "--ro-bind" p p ];
+  bindDev = path: let p = coerceToEnv path; in [ "--dev-bind" p p ];
   setEnv = key: val: [ "--setenv" key val ];
   
   bindPaths = map bind config.bubblewrap.bind.rw;
   bindRoPaths = map bindRo config.bubblewrap.bind.ro;
+  bindDevPaths = map bindDev config.bubblewrap.bind.dev;
   envVars = mapAttrsToList setEnv config.bubblewrap.env;
 
   app = config.app.package;
@@ -40,6 +42,8 @@ let
     (optionals config.bubblewrap.network "--share-net")
     (optionals config.bubblewrap.apivfs.dev ["--dev" "/dev"])
     (optionals config.bubblewrap.apivfs.proc ["--proc" "/proc"])
+
+    bindDevPaths
     
     (optionals config.dbus.enable [
       (bind "$XDG_RUNTIME_DIR/nixpak-bus")
