@@ -50,7 +50,7 @@ let
     # TODO: use closureInfo instead
     [ (bindRo "/nix/store") "${app}/${config.app.binPath}" ]
   ];
-  dbusProxyArgs = [ (env "DBUS_SESSION_BUS_ADDRESS") (coerceToEnv "$XDG_RUNTIME_DIR/nixpak-bus") ] ++ config.dbus.args;
+  dbusProxyArgs = [ (env "DBUS_SESSION_BUS_ADDRESS") (coerceToEnv "$XDG_RUNTIME_DIR/nixpak-bus") ] ++ config.dbus.args ++ [ "--filter" ];
   
   bwrapArgsJson = pkgs.writeText "bwrap-args.json" (builtins.toJSON bwrapArgs);
   dbusProxyArgsJson = pkgs.writeText "xdg-dbus-proxy-args.json" (builtins.toJSON dbusProxyArgs);
