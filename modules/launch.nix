@@ -5,7 +5,7 @@ let
   
   # TODO: make a proper type for env vars or pathspecs
   coerceToEnv = str: let
-    parsed = builtins.match "^\\$([a-zA-Z0-9_]*)(/[^/]*)?$" str;
+    parsed = builtins.match "^\\$([a-zA-Z0-9_]*)(/.*)?$" str;
     key = builtins.elemAt parsed 0;
     append = builtins.elemAt parsed 1;
   in if parsed != null then
