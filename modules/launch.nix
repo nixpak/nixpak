@@ -19,9 +19,10 @@ let
   concat = a: b: { type = "concat"; inherit a b; };
   env = key: { type = "env"; inherit key; };
 
-  bind = path: let p = coerceToEnv path; in [ "--bind" p p ];
-  bindRo = path: let p = coerceToEnv path; in [ "--ro-bind" p p ];
-  bindDev = path: let p = coerceToEnv path; in [ "--dev-bind" p p ];
+  bind' = arg: path: let p = coerceToEnv path; in [ arg p p ];
+  bind = bind' "--bind-try";
+  bindRo = bind' "--ro-bind-try";
+  bindDev = bind' "--dev-bind-try";
   setEnv = key: val: [ "--setenv" key val ];
   
   bindPaths = map bind config.bubblewrap.bind.rw;
