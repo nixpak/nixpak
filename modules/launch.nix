@@ -64,6 +64,12 @@ in {
       readOnly = true;
       type = types.package;
     };
+    env = mkOption {
+      description = "The app with the wrapper script replacing the regular binary.";
+      internal = true;
+      readOnly = true;
+      type = types.package;
+    };
   };
 
   config.script = pkgs.runCommandLocal "nixpak-${app.name or "app"}" {
@@ -79,4 +85,12 @@ in {
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_ARGS ${dbusProxyArgsJson}")
       ])}
   '');
+
+  config.env = pkgs.buildEnv {
+    inherit (config.script) name;
+    paths = [
+      (lib.hiPrio config.script)
+      app
+    ];
+  };
 }
