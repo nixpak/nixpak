@@ -54,6 +54,8 @@ let
   
   bwrapArgsJson = pkgs.writeText "bwrap-args.json" (builtins.toJSON bwrapArgs);
   dbusProxyArgsJson = pkgs.writeText "xdg-dbus-proxy-args.json" (builtins.toJSON dbusProxyArgs);
+
+  mainProgram = builtins.baseNameOf config.app.binPath;
 in {
   options = {
     script = mkOption {
@@ -64,11 +66,12 @@ in {
     };
   };
 
-  config.script = pkgs.runCommandLocal (app.pname or app.name or "nixpak-app") {
+  config.script = pkgs.runCommandLocal "nixpak-${app.name or "app"}" {
     nativeBuildInputs = [ pkgs.makeWrapper ];
+    meta = { inherit mainProgram; };
   } (''
     #mkdir -p $out/bin
-    makeWrapper ${launcher}/bin/launcher $out/bin/$name \
+    makeWrapper ${launcher}/bin/launcher $out/bin/${mainProgram} \
       ${concatStringsSep " " (flatten [
         "--set BWRAP_EXE ${config.bubblewrap.package}/bin/bwrap"
         "--set BUBBLEWRAP_ARGS ${bwrapArgsJson}"
