@@ -72,6 +72,20 @@ let
       substituteInPlace $line --replace ${app}/${config.app.binPath} ${config.script}/${config.app.binPath}
     done
   '';
+
+  # This is required because the Portal service reads /proc/$pid/root/.flatpak-info
+  # from the calling PID, when dbus-proxy is in use, this PID is the dbus-proxy process
+  # itself, not the actual application. Mitigation: Run dbus-proxy in a "sandbox"
+  dbusProxyWrapper = pkgs.writeShellScript "xdg-dbus-proxy-wrapper" ''
+    exec ${config.bubblewrap.package}/bin/bwrap ${concatStringsSep " " (flatten [
+      (bindRo "/etc")
+      (bindRo "/nix/store")
+      (bind "/var")
+      (bind "/tmp")
+      (bind "/run")
+      "--ro-bind-try ${config.flatpak.infoFile or "/.flatpak-info-not-found"} /.flatpak-info"
+    ])} ${pkgs.xdg-dbus-proxy}/bin/xdg-dbus-proxy "$@"
+  '';
 in {
   options = {
     script = mkOption {
@@ -97,7 +111,7 @@ in {
       ${concatStringsSep " " (flatten [
         "--set BWRAP_EXE ${config.bubblewrap.package}/bin/bwrap"
         "--set BUBBLEWRAP_ARGS ${bwrapArgsJson}"
-        (optionals config.dbus.enable "--set XDG_DBUS_PROXY_EXE ${pkgs.xdg-dbus-proxy}/bin/xdg-dbus-proxy")
+        (optionals config.dbus.enable "--set XDG_DBUS_PROXY_EXE ${dbusProxyWrapper}")
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_ARGS ${dbusProxyArgsJson}")
       ])}
   '');
