@@ -52,6 +52,8 @@ let
       (concat "unix:path=" (coerceToEnv "$XDG_RUNTIME_DIR/nixpak-bus"))
     ])
 
+    [ "--ro-bind" config.flatpak.infoFile "/.flatpak-info" ]
+
     # TODO: use closureInfo instead
     [ (bindRo "/nix/store") "${app}/${config.app.binPath}" ]
   ];

@@ -12,5 +12,7 @@ lib.evalModules {
     ./bubblewrap.nix
     ./dbus.nix
     ./launch.nix
+
+    ./flatpak-shim/flatpak-info.nix
   ];
 }
