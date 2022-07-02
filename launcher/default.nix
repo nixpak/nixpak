@@ -7,7 +7,7 @@ stdenvNoCC.mkDerivation {
   nativeBuildInputs = [ go ];
   
   buildPhase = ''
-    go build -ldflags "-s -w" main.go
+    go build -trimpath -ldflags "-s -w" main.go
   '';
   
   installPhase = ''
