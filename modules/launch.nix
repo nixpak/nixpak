@@ -61,6 +61,15 @@ let
   dbusProxyArgsJson = pkgs.writeText "xdg-dbus-proxy-args.json" (builtins.toJSON dbusProxyArgs);
 
   mainProgram = builtins.baseNameOf config.app.binPath;
+
+  envOverrides = pkgs.runCommand "nixpak-overrides-${app.name}" {} ''
+    mkdir $out
+    cd ${app}
+    grep -Rl ${app}/${config.app.binPath} | xargs -I {} cp -r --parents {} $out
+    find $out -type f | while read line; do
+      substituteInPlace $line --replace ${app}/${config.app.binPath} ${config.script}/${config.app.binPath}
+    done
+  '';
 in {
   options = {
     script = mkOption {
@@ -95,6 +104,7 @@ in {
     inherit (config.script) name;
     paths = [
       (lib.hiPrio config.script)
+      (lib.hiPrio envOverrides)
       app
     ];
   };
