@@ -71,6 +71,14 @@ let
     find $out -type f | while read line; do
       substituteInPlace $line --replace ${app}/${config.app.binPath} ${config.script}/${config.app.binPath}
     done
+
+    desktopFileRel=share/applications/${config.flatpak.appId}.desktop
+    if [[ -e $desktopFileRel ]]; then
+      chmod +w -R $out
+      cp --parents $desktopFileRel $out
+      chmod +w $out/$desktopFileRel
+      echo -e '\nX-Flatpak=${config.flatpak.appId}' >> $out/$desktopFileRel
+    fi
   '';
 
   # This is required because the Portal service reads /proc/$pid/root/.flatpak-info
