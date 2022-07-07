@@ -11,6 +11,7 @@ lib.evalModules {
     ./app.nix
     ./bubblewrap.nix
     ./dbus.nix
+    ./gpu.nix
     ./launch.nix
 
     ./flatpak-shim/flatpak-info.nix
