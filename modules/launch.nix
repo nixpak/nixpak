@@ -67,7 +67,7 @@ let
   envOverrides = pkgs.runCommand "nixpak-overrides-${app.name}" {} ''
     mkdir $out
     cd ${app}
-    grep -Rl ${app}/${config.app.binPath} | xargs -I {} cp -r --parents {} $out
+    grep -Rl ${app}/${config.app.binPath} | xargs -r -I {} cp -r --parents {} $out || true
     find $out -type f | while read line; do
       substituteInPlace $line --replace ${app}/${config.app.binPath} ${config.script}/${config.app.binPath}
     done
