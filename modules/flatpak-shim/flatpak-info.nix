@@ -13,7 +13,7 @@ let
   firstLetter = substring 0 1;
   restLetters = substring 1 (-1);
   upperFirst = string: (toUpper (firstLetter string)) + (restLetters string);
-  appNameCase = name: concatStrings (map upperFirst (builtins.split "-" name));
+  appNameCase = name: concatStrings (map upperFirst (filter isString (builtins.split "-" name)));
 in
 {
   options.flatpak = {
