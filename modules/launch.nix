@@ -19,7 +19,18 @@ let
   concat = a: b: { type = "concat"; inherit a b; };
   env = key: { type = "env"; inherit key; };
 
-  bind' = arg: path: let p = coerceToEnv path; in [ arg p p ];
+  splitPath = path: if isList path then {
+    a = elemAt path 0;
+    b = elemAt path 1;
+  } else {
+    a = path;
+    b = path;
+  };
+
+  bind' = arg: path: let
+    split = splitPath path;
+    coerced = mapAttrs (_: coerceToEnv) split;
+  in [ arg coerced.a coerced.b ];
   bind = bind' "--bind-try";
   bindRo = bind' "--ro-bind-try";
   bindDev = bind' "--dev-bind-try";
