@@ -8,7 +8,7 @@ let
     parsed = builtins.match "^\\$([a-zA-Z0-9_]*)(/(.*))?$" str;
     key = builtins.elemAt parsed 0;
     append = builtins.elemAt parsed 2;
-  in if parsed != null then
+  in if builtins.isString str && parsed != null then
       if append != null then
         concat (env key) (concat "/" (coerceToEnv append))
       else
@@ -16,6 +16,7 @@ let
     else
       str;
 
+  instanceId = { type = "instanceId"; };
   concat = a: b: { type = "concat"; inherit a b; };
   env = key: { type = "env"; inherit key; };
 
@@ -44,6 +45,7 @@ let
   app = config.app.package;
   info = pkgs.closureInfo { rootPaths = app; };
   launcher = pkgs.callPackage ../launcher {};
+  dbusOutsidePath = concat (env "XDG_RUNTIME_DIR") (concat "/nixpak-bus-" instanceId);
   
   bwrapArgs = flatten [
     "--unshare-all"
@@ -58,7 +60,7 @@ let
     bindDevPaths
     
     (optionals config.dbus.enable [
-      (bind "$XDG_RUNTIME_DIR/nixpak-bus")
+      (bind [ dbusOutsidePath "$XDG_RUNTIME_DIR/nixpak-bus" ])
       "--setenv" "DBUS_SESSION_BUS_ADDRESS"
       (concat "unix:path=" (coerceToEnv "$XDG_RUNTIME_DIR/nixpak-bus"))
     ])
@@ -68,7 +70,7 @@ let
     # TODO: use closureInfo instead
     [ (bindRo "/nix/store") "${app}/${config.app.binPath}" ]
   ];
-  dbusProxyArgs = [ (env "DBUS_SESSION_BUS_ADDRESS") (coerceToEnv "$XDG_RUNTIME_DIR/nixpak-bus") ] ++ config.dbus.args ++ [ "--filter" ];
+  dbusProxyArgs = [ (env "DBUS_SESSION_BUS_ADDRESS") dbusOutsidePath ] ++ config.dbus.args ++ [ "--filter" ];
   
   bwrapArgsJson = pkgs.writeText "bwrap-args.json" (builtins.toJSON bwrapArgs);
   dbusProxyArgsJson = pkgs.writeText "xdg-dbus-proxy-args.json" (builtins.toJSON dbusProxyArgs);
