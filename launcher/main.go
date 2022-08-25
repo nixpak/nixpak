@@ -1,10 +1,13 @@
 package main
 
 import (
+	"crypto/md5"
+	"encoding/base32"
 	"encoding/json"
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"strconv"
 	"time"
 )
 
@@ -42,6 +45,23 @@ func (c Concat) String() string {
 	return c.A + c.B
 }
 
+type InstanceId struct {
+	Type string
+	Id   string
+}
+
+func NewInstanceId(raw JsonRaw) (i InstanceId) {
+	i.Type = "instanceId"
+	var sum = md5.Sum([]byte(strconv.Itoa(os.Getpid())))
+	var enc = base32.NewEncoding("0123456789abcdfghijklmnpqrsvwxyz").WithPadding(base32.NoPadding)
+	i.Id = enc.EncodeToString(sum[:])
+	return
+}
+
+func (i InstanceId) String() string {
+	return i.Id
+}
+
 func envOr(name string, or string) string {
 	val, found := os.LookupEnv(name)
 	if found {
@@ -62,6 +82,8 @@ func valToString(item interface{}) (ret string) {
 			ret = NewEnvVar(raw).String()
 		case "concat":
 			ret = NewConcat(raw).String()
+		case "instanceId":
+			ret = NewInstanceId(raw).String()
 		default:
 			panic("Unknown type: \"" + raw["type"].(string) + "\"")
 		}
