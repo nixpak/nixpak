@@ -1,16 +1,12 @@
-{ go, stdenvNoCC }:
+{ buildGoModule, stdenvNoCC }:
 
-stdenvNoCC.mkDerivation {
-  name = "launcher";
+let
+  buildGoModuleNoCC = buildGoModule.override { stdenv = stdenvNoCC; };
+in
+
+buildGoModuleNoCC {
+  pname = "nixpak-launcher";
+  version = "1.0.0";
   src = ./.;
-  
-  nativeBuildInputs = [ go ];
-  
-  buildPhase = ''
-    go build -trimpath -ldflags "-s -w" main.go
-  '';
-  
-  installPhase = ''
-    install -Dm755 main $out/bin/launcher
-  '';
+  vendorSha256 = null;
 }
