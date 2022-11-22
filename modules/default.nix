@@ -16,5 +16,7 @@ lib.evalModules {
     ./launch.nix
 
     ./flatpak-shim/flatpak-info.nix
+
+    ./lib/sloth.nix
   ];
 }
