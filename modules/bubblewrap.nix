@@ -45,6 +45,12 @@ in {
       default = [];
     };
 
+    tmpfs = mkOption {
+      description = "Tmpfs locations.";
+      type = envPathType;
+      default = [];
+    };
+
     package = mkOption {
       description = "Bubblewrap package to use.";
       type = types.package;

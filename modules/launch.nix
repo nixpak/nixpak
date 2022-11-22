@@ -36,11 +36,13 @@ let
   bindRo = bind' "--ro-bind-try";
   bindDev = bind' "--dev-bind-try";
   setEnv = key: val: [ "--setenv" key val ];
+  mountTmpfs = path: [ "--tmpfs" path ];
   
   bindPaths = map bind config.bubblewrap.bind.rw;
   bindRoPaths = map bindRo config.bubblewrap.bind.ro;
   bindDevPaths = map bindDev config.bubblewrap.bind.dev;
   envVars = mapAttrsToList setEnv config.bubblewrap.env;
+  tmpfs = map mountTmpfs config.bubblewrap.tmpfs;
 
   app = config.app.package;
   info = pkgs.closureInfo { rootPaths = app; };
@@ -52,6 +54,7 @@ let
     bindPaths
     bindRoPaths
     envVars
+    tmpfs
     
     (optionals config.bubblewrap.network "--share-net")
     (optionals config.bubblewrap.apivfs.dev ["--dev" "/dev"])
