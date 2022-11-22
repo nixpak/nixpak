@@ -11,6 +11,7 @@ lib.evalModules {
     ./app.nix
     ./bubblewrap.nix
     ./dbus.nix
+    ./etc.nix
     ./gpu.nix
     ./launch.nix
 
