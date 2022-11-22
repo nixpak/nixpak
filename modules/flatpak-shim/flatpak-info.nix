@@ -51,7 +51,7 @@ in
         name = config.flatpak.appId;
         runtime = config.flatpak.runtimeId;
       };
-      Context.shared = concatStringsSep " " config.flatpak.sharedNamespaces;
+      Context.shared = "${concatStringsSep ";" config.flatpak.sharedNamespaces};";
     };
     infoFile = writeINI config.flatpak.info;
   };
