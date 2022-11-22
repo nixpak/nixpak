@@ -27,6 +27,11 @@ in
       type = types.str;
       default = "runtime/com.nixpak.Platform/${flatpakArchitectures.${pkgs.system} or "unknown-arch-${pkgs.system}"}/1";
     };
+    sharedNamespaces = mkOption {
+      description = "Indicate shared/unshared status of namespaces";
+      type = with types; listOf (enum [ "ipc" "network" ]);
+      default = lib.optional config.bubblewrap.network "network";
+    };
 
     info = mkOption {
       description = "Metadata for .flatpak-info";
@@ -46,6 +51,7 @@ in
         name = config.flatpak.appId;
         runtime = config.flatpak.runtimeId;
       };
+      Context.shared = concatStringsSep " " config.flatpak.sharedNamespaces;
     };
     infoFile = writeINI config.flatpak.info;
   };
