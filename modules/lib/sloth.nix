@@ -1,4 +1,4 @@
-{ lib, ... }:
+{ config, lib, sloth, ... }:
 
 {
   _module.args.sloth = {
@@ -19,9 +19,22 @@
         };
     in lib.foldl' mkConcatStruct null;
 
+    concat' = a: b: sloth.concat [ a b ];
+
     mkdir = dir: {
       inherit dir;
       type = "mkdir";
     };
+
+    homeDir = sloth.env "HOME";
+
+    appDir = sloth.concat [
+      sloth.homeDir
+      "/.var/app/${config.flatpak.appId}"
+    ];
+
+    appCacheDir = sloth.concat' sloth.appDir "/cache";
+
+    appDataDir = sloth.concat' sloth.appDir "/data";
   };
 }
