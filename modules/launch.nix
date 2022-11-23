@@ -89,6 +89,13 @@ let
     find $out -type f | while read line; do
       substituteInPlace $line --replace ${app}/${config.app.binPath} ${config.script}/${config.app.binPath}
     done
+    find . -type l | while read line; do
+      linkTarget="$(readlink $line)"
+      if [[ "$linkTarget" == *${app}* ]]; then
+        mkdir -p $(dirname $out/$line)
+        ln -sf "$(echo $linkTarget | sed 's,${app},${config.script},g')" $out/$line
+      fi
+    done
 
     desktopFileRel=share/applications/${config.flatpak.appId}.desktop
     if [[ -e $desktopFileRel ]]; then
