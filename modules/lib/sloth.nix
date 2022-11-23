@@ -18,5 +18,10 @@
           inherit a b;
         };
     in lib.foldl' mkConcatStruct null;
+
+    mkdir = dir: {
+      inherit dir;
+      type = "mkdir";
+    };
   };
 }

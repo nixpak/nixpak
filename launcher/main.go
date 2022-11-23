@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/base32"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -62,6 +63,25 @@ func (i InstanceId) String() string {
 	return i.Id
 }
 
+type Mkdir struct {
+	Type string
+	Dir  string
+}
+
+func NewMkdir(raw JsonRaw) (m Mkdir) {
+	m.Type = "mkdir"
+	m.Dir = valToString(raw["dir"])
+	return
+}
+
+func (m Mkdir) String() string {
+	err := os.MkdirAll(m.Dir, 0700)
+	if err != nil {
+		fmt.Println(err)
+	}
+	return m.Dir
+}
+
 func envOr(name string, or string) string {
 	val, found := os.LookupEnv(name)
 	if found {
@@ -84,6 +104,8 @@ func valToString(item interface{}) (ret string) {
 			ret = NewConcat(raw).String()
 		case "instanceId":
 			ret = NewInstanceId(raw).String()
+		case "mkdir":
+			ret = NewMkdir(raw).String()
 		default:
 			panic("Unknown type: \"" + raw["type"].(string) + "\"")
 		}
