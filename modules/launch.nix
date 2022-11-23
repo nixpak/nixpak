@@ -4,17 +4,19 @@ let
   # most of the things here should probably be incorporated into a module
   
   # TODO: make a proper type for env vars or pathspecs
-  coerceToEnv = str: let
-    parsed = builtins.match "^\\$([a-zA-Z0-9_]*)(/(.*))?$" str;
-    key = builtins.elemAt parsed 0;
-    append = builtins.elemAt parsed 2;
-  in if builtins.isString str && parsed != null then
+  coerceToEnv = val: let
+    parsed = strings.match "^\\$([a-zA-Z0-9_]*)(/(.*))?$" val;
+    key = elemAt parsed 0;
+    append = elemAt parsed 2;
+  in if isString val && parsed != null then
       if append != null then
         concat (env key) (concat "/" (coerceToEnv append))
       else
         env key
+    else if isAttrs val && val ? _sloth then
+      val._sloth
     else
-      str;
+      val;
 
   instanceId = { type = "instanceId"; };
   concat = a: b: { type = "concat"; inherit a b; };

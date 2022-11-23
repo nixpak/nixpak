@@ -9,7 +9,11 @@ let
   
   envPathType = mkOptionType {
     name = "path specifier";
-    check = x: strings.isCoercibleToString x && builtins.elem (builtins.substring 0 1 (toString x)) [ "/" "$" ];
+    check = x:
+      # string style
+      (strings.isCoercibleToString x && builtins.elem (builtins.substring 0 1 (toString x)) [ "/" "$" ])
+      # sloth style
+      || (isAttrs x && x ? _sloth);
   };
 
   pairOf = elemType: with types; let
