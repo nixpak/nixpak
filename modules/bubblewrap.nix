@@ -51,7 +51,7 @@ in {
 
     tmpfs = mkOption {
       description = "Tmpfs locations.";
-      type = envPathType;
+      type = types.listOf envPathType;
       default = [];
     };
 
