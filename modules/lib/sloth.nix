@@ -2,6 +2,7 @@
 
 {
   _module.args.sloth = {
+    mk = _sloth: { inherit _sloth; };
     env = key: {
       inherit key;
       type = "env";
