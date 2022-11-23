@@ -77,11 +77,12 @@ Also see the [examples directory](./examples)
 
             # lists of paths to be mounted inside the sandbox
             # supports limited runtime resolution of environment variables
-            # does not support mounting things at a different path (SRC != DST)
-            # this is subject to change and will be much nicer eventually
             bind.rw = [
               "$HOME/Documents"
               "$XDG_RUNTIME_DIR"
+              # a nested list represents a src -> dest moapping
+              # where src != dest
+              [ "$HOME/.local/state/nixpak/hello/config" "$HOME/.config" ]
             ];
             bind.ro = [
               "$HOME/Downloads"
