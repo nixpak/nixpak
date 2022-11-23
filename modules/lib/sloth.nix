@@ -9,13 +9,32 @@
     };
 
     concat = let
+      isConcat = x: x.type or "" == "concat";
+
+      backAttachable = x: isConcat x && lib.isString x.b;
+
+      frontAttachable = x: isConcat x && lib.isString x.a;
+
+      balanceConcats = a: b:
+        if backAttachable a && lib.isString b then {
+          inherit (a) a;
+          b = a.b + b;
+        }
+        else if lib.isString a && frontAttachable b then {
+          a = a + b.a;
+          inherit (b) b;
+        }
+        else if backAttachable a && frontAttachable b then
+          sloth.concat [ a.a (a.b + b.a) b.b ]
+        else { inherit a b; };
+
       mkConcatStruct = a: b:
         if a == null then b
         else if b == null then a
         else if (lib.isString a && lib.isString b) then a + b
         else {
           type = "concat";
-          inherit a b;
+          inherit (balanceConcats a b) a b;
         };
     in lib.foldl' mkConcatStruct null;
 
