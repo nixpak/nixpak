@@ -97,13 +97,14 @@ let
       fi
     done
 
-    desktopFileRel=share/applications/${config.flatpak.appId}.desktop
-    if [[ -e $desktopFileRel ]]; then
-      chmod +w -R $out
-      cp --parents $desktopFileRel $out
-      chmod +w $out/$desktopFileRel
-      echo -e '\nX-Flatpak=${config.flatpak.appId}' >> $out/$desktopFileRel
-    fi
+    for desktopFileRel in share/applications/*.desktop; do
+      if [[ -e $desktopFileRel ]] && grep -qm1 '[Desktop Entry]' $desktopFileRel; then
+        chmod +w -R $out
+        cp --parents $desktopFileRel $out
+        chmod +w $out/$desktopFileRel
+        echo -e '\nX-Flatpak=${config.flatpak.appId}' >> $out/$desktopFileRel
+      fi
+    done
   '';
 
   # This is required because the Portal service reads /proc/$pid/root/.flatpak-info
