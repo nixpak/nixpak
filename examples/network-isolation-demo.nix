@@ -1,10 +1,10 @@
 { mkNixPak, curl }:
 
 mkNixPak {
-  config = {
+  config = { sloth, ...}: {
     dbus.enable = false;
     bubblewrap = {
-      bind.ro = [ "$HOME" ];
+      bind.ro = [ sloth.homeDir ];
       network = false;
     };
     app.package = curl;

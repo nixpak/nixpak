@@ -1,10 +1,10 @@
 { mkNixPak, drv }:
 
 mkNixPak {
-  config = {
+  config = { sloth, ...}: {
     app.package = drv;
     bubblewrap = {
-      bind.rw = [ "$HOME" ];
+      bind.rw = [ sloth.homeDir ];
       env.NIXPAK_INFO = "Hello from NixPak - app: ${drv.name}";
     };
   };
