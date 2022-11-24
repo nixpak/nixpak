@@ -13,8 +13,6 @@ let
         concat (env key) (concat "/" (coerceToEnv append))
       else
         env key
-    else if isAttrs val && val ? _sloth then
-      val._sloth
     else
       val;
 

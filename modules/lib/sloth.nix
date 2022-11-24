@@ -1,8 +1,29 @@
 { config, lib, sloth, ... }:
 
+let
+  knownTypes = [
+    "concat"
+    "env"
+    "instanceId"
+    "mkdir"
+  ];
+in
 {
   _module.args.sloth = {
-    mk = _sloth: { inherit _sloth; };
+
+    type = with lib; mkOptionType {
+      name = "sloth value";
+      check = x:
+        # path style
+        (types.path.check x)
+        # sloth style
+        || (isAttrs x && x ? type && any (t: x.type == t) knownTypes);
+    };
+
+    instanceId = {
+      type = "instanceId";
+    };
+
     env = key: {
       inherit key;
       type = "env";

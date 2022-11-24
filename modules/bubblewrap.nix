@@ -1,4 +1,4 @@
-{ lib, pkgs, ... }:
+{ lib, pkgs, sloth, ... }:
 with lib;
 let
   mkMountToggle = desc: mkOption {
@@ -7,15 +7,6 @@ let
     description = "Whether to mount ${desc}.";
   };
   
-  envPathType = mkOptionType {
-    name = "path specifier";
-    check = x:
-      # string style
-      (strings.isCoercibleToString x && builtins.elem (builtins.substring 0 1 (toString x)) [ "/" "$" ])
-      # sloth style
-      || (isAttrs x && x ? _sloth);
-  };
-
   pairOf = elemType: with types; let
     list = nonEmptyListOf elemType;
     checked = addCheck list (l: length l == 2);
@@ -24,8 +15,8 @@ let
   };
 
   bindType = with types; listOf (oneOf [
-    (pairOf envPathType)
-    envPathType
+    (pairOf sloth.type)
+    sloth.type
   ]);
 in {
   options.bubblewrap = {
@@ -51,7 +42,7 @@ in {
 
     tmpfs = mkOption {
       description = "Tmpfs locations.";
-      type = types.listOf envPathType;
+      type = types.listOf sloth.type;
       default = [];
     };
 
