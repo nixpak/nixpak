@@ -43,7 +43,7 @@ Also see the [examples directory](./examples)
       };
 
       sandboxed-hello = mkNixPak {
-        config = {
+        config = { sloth, ... }: {
 
           # the application to isolate
           app.package = pkgs.hello;
@@ -76,16 +76,20 @@ Also see the [examples directory](./examples)
             network = false;
 
             # lists of paths to be mounted inside the sandbox
-            # supports limited runtime resolution of environment variables
+            # supports runtime resolution of environment variables
+            # see "Sloth values" below
             bind.rw = [
-              "$HOME/Documents"
-              "$XDG_RUNTIME_DIR"
+              (sloth.concat' sloth.homeDir "/Documents")
+              (sloth.env "XDG_RUNTIME_DIR")
               # a nested list represents a src -> dest moapping
               # where src != dest
-              [ "$HOME/.local/state/nixpak/hello/config" "$HOME/.config" ]
+              [
+                (sloth.concat' sloth.homeDir "/.local/state/nixpak/hello/config")
+                (sloth.concat' sloth.homeDir "/.config")
+              ]
             ];
             bind.ro = [
-              "$HOME/Downloads"
+              (sloth.concat' sloth.homeDir "/Downloads")
             ];
             bind.dev = [
               "/dev/dri"
@@ -107,4 +111,74 @@ Also see the [examples directory](./examples)
   };
 }
 ```
+## Sloth values
 
+Sandbox tools often need to deal with dynamic paths. Hardcoding a specific user's home directory in
+a sandbox configuration is not very useful. To deal with this, NixPak configuration supports values
+whose evaluation is delayed until runtime, called "sloth values" for their extraordinary laziness.
+
+Sloth values are constructed using attributes from the `sloth` attribute set, which is available
+via module arguments.
+
+```nix
+{ sloth, ... }:
+
+{
+  bubblewrap.bind.ro = [ sloth.homeDir ];
+}
+```
+
+### Sloth value types
+
+The following entries use Haskell-style type annotations. The `Sloth` type refers to a sloth value,
+which can be a string or a rich sloth value as created by `sloth.*` functions.
+
+#### `sloth.env :: string -> Sloth`
+
+Takes an environment variable name and resolves it to its value at runtime.
+
+```nix
+sloth.env "HOME" # results in "/home/user" at runtime
+```
+
+#### `sloth.mkdir :: Sloth -> Sloth`
+
+Ensures the presence of a directory. If it does not exist, creates it with permisions `0700`,
+including all its parent components (like `mkdir -p`). Returns the resolved sloth value afterwards.
+
+```nix
+sloth.mkdir (sloth.env "MY_CACHE_DIRECTORY")
+```
+
+#### `sloth.concat :: [Sloth] -> Sloth`
+
+Concatenates sloth values. Useful for combining an environment variable with a string.
+
+```nix
+sloth.concat [
+  sloth.homeDir
+  "/.config"
+]
+```
+
+#### `sloth.concat' :: Sloth -> Sloth -> Sloth`
+
+Concatenates two sloth values, with the convenience of not having to create a list.
+
+```nix
+sloth.concat' sloth.homeDir "/.config"
+```
+
+#### `sloth.instanceId :: Sloth`
+
+A unique alphanumeric string derived from the launcher's PID. Used to differentiate between
+multiple simultaneously active sandbox instances.
+
+```nix
+sloth.concat [
+  (sloth.env "XDG_RUNTIME_DIR")
+  "/my-app-"
+  sloth.instanceId
+]
+# looks something like "/run/user/1000/my-app-jim1rivq0gblz0vn6k32wgv7aq"
+```
