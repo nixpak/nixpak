@@ -17,6 +17,8 @@ lib.evalModules {
 
     ./flatpak-shim/flatpak-info.nix
 
+    ./gui/fonts.nix
+
     ./lib/sloth.nix
   ];
 }
