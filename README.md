@@ -81,7 +81,7 @@ Also see the [examples directory](./examples)
             bind.rw = [
               (sloth.concat' sloth.homeDir "/Documents")
               (sloth.env "XDG_RUNTIME_DIR")
-              # a nested list represents a src -> dest moapping
+              # a nested list represents a src -> dest mapping
               # where src != dest
               [
                 (sloth.concat' sloth.homeDir "/.local/state/nixpak/hello/config")
