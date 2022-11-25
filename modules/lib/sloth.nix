@@ -81,5 +81,9 @@ in
     appCacheDir = sloth.concat' sloth.appDir "/cache";
 
     appDataDir = sloth.concat' sloth.appDir "/data";
+
+    xdgCacheHome = sloth.envOr "XDG_CACHE_HOME" (sloth.concat' sloth.homeDir "/.cache");
+
+    xdgConfigHome = sloth.envOr "XDG_CONFIG_HOME" (sloth.concat' sloth.homeDir "/.config");
   };
 }
