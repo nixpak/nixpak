@@ -28,6 +28,11 @@ in
       inherit key;
       type = "env";
     };
+    envOr = key: or_: {
+      inherit key;
+      "or" = or_;
+      type = "env";
+    };
 
     concat = let
       isConcat = x: x.type or "" == "concat";

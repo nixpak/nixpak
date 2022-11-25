@@ -13,20 +13,34 @@ import (
 )
 
 type JsonRaw = map[string]interface{}
+type Thunk func() string
 
 type EnvVar struct {
 	Type string
 	Key  string
+	Or   Thunk
 }
 
 func NewEnvVar(raw JsonRaw) (e EnvVar) {
 	e.Type = "env"
 	e.Key = raw["key"].(string)
+	if or, ok := raw["or"]; ok {
+		e.Or = func() string {
+			return valToString(or)
+		}
+	}
 	return
 }
 
 func (e EnvVar) String() string {
-	return os.Getenv(e.Key)
+	r, _ := os.LookupEnv(e.Key)
+	if r != "" {
+		return r
+	}
+	if e.Or != nil {
+		return e.Or()
+	}
+	panic(fmt.Sprintf("environment variable '%s' not set", e.Key))
 }
 
 type Concat struct {
