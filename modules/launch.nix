@@ -80,10 +80,10 @@ let
 
   mainProgram = builtins.baseNameOf config.app.binPath;
 
-  envOverrides = pkgs.runCommand "nixpak-overrides-${app.name}" {} ''
+  envOverrides = pkgs.runCommand "nixpak-overrides-${app.name}" {} (''
     mkdir $out
     cd ${app}
-    grep -Rl ${app}/${config.app.binPath} | xargs -r -I {} cp -r --parents {} $out || true
+    grep -Rl ${app}/${config.app.binPath} | xargs -r -I {} cp -r --parents --no-preserve=mode {} $out || true
     find $out -type f | while read line; do
       substituteInPlace $line --replace ${app}/${config.app.binPath} ${config.script}/${config.app.binPath}
     done
@@ -97,13 +97,14 @@ let
 
     for desktopFileRel in share/applications/*.desktop; do
       if [[ -e $desktopFileRel ]] && grep -qm1 '[Desktop Entry]' $desktopFileRel; then
-        chmod +w -R $out
-        cp --parents $desktopFileRel $out
-        chmod +w $out/$desktopFileRel
+        cp --parents --no-preserve=mode $desktopFileRel $out
         echo -e '\nX-Flatpak=${config.flatpak.appId}' >> $out/$desktopFileRel
       fi
     done
-  '';
+  '' + lib.optionalString (config.flatpak.desktopFile != "${config.flatpak.appId}.desktop") ''
+    mv $out/share/applications/${config.flatpak.desktopFile} $out/share/applications/${config.flatpak.appId}.desktop
+    ln -s /dev/null $out/share/applications/${config.flatpak.desktopFile}
+  '');
 
   # This is required because the Portal service reads /proc/$pid/root/.flatpak-info
   # from the calling PID, when dbus-proxy is in use, this PID is the dbus-proxy process
