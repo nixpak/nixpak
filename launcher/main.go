@@ -9,7 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
-	"time"
+	"syscall"
 )
 
 type JsonRaw = map[string]interface{}
@@ -161,14 +161,9 @@ func main() {
 
 	bwrapArgs := readJsonArgs(bwrapArgsJson)
 	if useDbusProxy {
-		bwrapArgs = append([]string{"--sync-fd", "3"}, bwrapArgs...)
+		bwrapArgs = append([]string{"--sync-fd", strconv.Itoa(int(r.Fd()))}, bwrapArgs...)
 	}
 	bwrapArgs = append(bwrapArgs, os.Args[1:]...)
-	cmd := exec.Command(bwrapExe, bwrapArgs...)
-
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 
 	if useDbusProxy {
 		dbusproxyArgs := readJsonArgs(dbusproxyArgsJson)
@@ -176,17 +171,18 @@ func main() {
 		dbus.Stdout = os.Stdout
 		dbus.Stderr = os.Stderr
 
-		defer w.Close()
-		defer r.Close()
-
 		dbus.ExtraFiles = []*os.File{w}
-		cmd.ExtraFiles = []*os.File{r}
 
 		if err := dbus.Start(); err != nil {
 			panic(err)
 		}
-	}
-	time.Sleep(100 * time.Millisecond)
 
-	cmd.Run()
+		w.Close()
+		if _, err := r.Read([]byte{'x'}); err != nil {
+			panic(err)
+		}
+	}
+	// unset O_CLOEXEC
+	syscall.Syscall(syscall.SYS_FCNTL, r.Fd(), syscall.F_SETFD, 0)
+	syscall.Exec(bwrapExe, append([]string{bwrapExe}, bwrapArgs...), os.Environ())
 }
