@@ -98,7 +98,7 @@ let
     for desktopFileRel in share/applications/*.desktop; do
       if [[ -e $desktopFileRel ]] && grep -qm1 '[Desktop Entry]' $desktopFileRel; then
         cp --parents --no-preserve=mode $desktopFileRel $out
-        echo -e '\nX-Flatpak=${config.flatpak.appId}' >> $out/$desktopFileRel
+        sed -i 's/\[Desktop Entry\]$/[Desktop Entry]\nX-Flatpak=${config.flatpak.appId}/g' $out/$desktopFileRel
       fi
     done
   '' + lib.optionalString (config.flatpak.desktopFile != "${config.flatpak.appId}.desktop") ''
