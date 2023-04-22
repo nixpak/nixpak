@@ -23,14 +23,19 @@
 
     packages = forEachSystem (system: {
       busybox = (import ./examples/busybox.nix {
-        inherit (forSystem.${system}) mkNixPak; 
+        inherit (forSystem.${system}) mkNixPak;
         inherit (nixpkgs.legacyPackages.${system}) busybox;
       }).config.script;
 
       useless-curl = (import ./examples/network-isolation-demo.nix {
-        inherit (forSystem.${system}) mkNixPak; 
+        inherit (forSystem.${system}) mkNixPak;
         inherit (nixpkgs.legacyPackages.${system}) curl;
       }).config.script;
+
+      vim = (import ./examples/multiple-executables.nix {
+        inherit (forSystem.${system}) mkNixPak;
+        inherit (nixpkgs.legacyPackages.${system}) vim;
+      }).config.env;
     });
 
     bundlers = forEachSystem (system: {
