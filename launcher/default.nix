@@ -6,7 +6,7 @@ in
 
 buildGoModuleNoCC {
   pname = "nixpak-launcher";
-  version = "1.0.1";
+  version = "2.0.0";
   src = ./.;
   vendorSha256 = null;
 }

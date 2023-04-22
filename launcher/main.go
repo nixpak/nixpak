@@ -148,6 +148,11 @@ func main() {
 	}
 	dbusproxyArgsJson, useDbusProxy := os.LookupEnv("XDG_DBUS_PROXY_ARGS")
 
+	appExe, foundAppExe := os.LookupEnv("NIXPAK_APP_EXE")
+	if !foundAppExe {
+		panic("No executable given")
+	}
+
 	var r, w *os.File
 	var dbusproxyExe string
 	if useDbusProxy {
@@ -163,6 +168,7 @@ func main() {
 	if useDbusProxy {
 		bwrapArgs = append([]string{"--sync-fd", strconv.Itoa(int(r.Fd()))}, bwrapArgs...)
 	}
+	bwrapArgs = append(bwrapArgs, appExe)
 	bwrapArgs = append(bwrapArgs, os.Args[1:]...)
 
 	if useDbusProxy {
