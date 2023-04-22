@@ -132,7 +132,7 @@ let
   in ''
     grep -Rl ${app}${entrypoint} | xargs -r -I {} cp -r --parents --no-preserve=mode {} $out || true
     find $out -type f | while read line; do
-      substituteInPlace $line --replace ${app}${entrypoint} ${entrypointScript}
+      substituteInPlace $line --replace ${app}${entrypoint} ${entrypointScript}${entrypoint}
     done
     rm -f $out${entrypoint}
   '') config.app.extraEntrypoints));
