@@ -9,6 +9,13 @@ with lib;
           description = "The app package.";
           type = types.package;
         };
+
+        extraEntrypoints = mkOption {
+          description = "Additional entrypoints, such as GNOME search providers.";
+          example = [ "/libexec/lollypop-sp" ];
+          type = with types; listOf str;
+          default = [];
+        };
       };
     }
     {

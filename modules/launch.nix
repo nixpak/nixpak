@@ -71,7 +71,7 @@ let
     [ "--ro-bind" config.flatpak.infoFile "/.flatpak-info" ]
 
     # TODO: use closureInfo instead
-    [ (bindRo "/nix/store") "${app}/${config.app.binPath}" ]
+    (bindRo "/nix/store")
   ];
   dbusProxyArgs = [ (env "DBUS_SESSION_BUS_ADDRESS") dbusOutsidePath ] ++ config.dbus.args ++ [ "--filter" ];
   
@@ -79,6 +79,29 @@ let
   dbusProxyArgsJson = pkgs.writeText "xdg-dbus-proxy-args.json" (builtins.toJSON dbusProxyArgs);
 
   mainProgram = builtins.baseNameOf config.app.binPath;
+
+  mkWrapperScript = {
+    name,
+    mainProgram ? null,
+    executablePath ? "/bin/${mainProgram}"
+  }: pkgs.runCommandLocal "nixpak-${name}" {
+    nativeBuildInputs = [ pkgs.makeWrapper ];
+    meta = optionalAttrs (mainProgram != null) { inherit mainProgram; };
+  } (''
+    makeWrapper ${launcher}/bin/launcher $out${executablePath} \
+      ${concatStringsSep " " (flatten [
+        "--set BWRAP_EXE ${config.bubblewrap.package}/bin/bwrap"
+        "--set NIXPAK_APP_EXE ${app}${executablePath}"
+        "--set BUBBLEWRAP_ARGS ${bwrapArgsJson}"
+        (optionals config.dbus.enable "--set XDG_DBUS_PROXY_EXE ${dbusProxyWrapper}")
+        (optionals config.dbus.enable "--set XDG_DBUS_PROXY_ARGS ${dbusProxyArgsJson}")
+      ])}
+  '');
+
+  extraEntrypointScripts = genAttrs config.app.extraEntrypoints (entrypoint: mkWrapperScript {
+    name = "${app.name or "app"}${strings.sanitizeDerivationName entrypoint}";
+    executablePath = entrypoint;
+  });
 
   envOverrides = pkgs.runCommand "nixpak-overrides-${app.name}" {} (''
     mkdir $out
@@ -104,7 +127,15 @@ let
   '' + lib.optionalString (config.flatpak.desktopFile != "${config.flatpak.appId}.desktop") ''
     mv $out/share/applications/${config.flatpak.desktopFile} $out/share/applications/${config.flatpak.appId}.desktop
     ln -s /dev/null $out/share/applications/${config.flatpak.desktopFile}
-  '');
+  '' + concatStringsSep "\n" (map (entrypoint: let
+    entrypointScript = extraEntrypointScripts.${entrypoint};
+  in ''
+    grep -Rl ${app}${entrypoint} | xargs -r -I {} cp -r --parents --no-preserve=mode {} $out || true
+    find $out -type f | while read line; do
+      substituteInPlace $line --replace ${app}${entrypoint} ${entrypointScript}
+    done
+    rm -f $out${entrypoint}
+  '') config.app.extraEntrypoints));
 
   # This is required because the Portal service reads /proc/$pid/root/.flatpak-info
   # from the calling PID, when dbus-proxy is in use, this PID is the dbus-proxy process
@@ -135,26 +166,17 @@ in {
     };
   };
 
-  config.script = pkgs.runCommandLocal "nixpak-${app.name or "app"}" {
-    nativeBuildInputs = [ pkgs.makeWrapper ];
-    meta = { inherit mainProgram; };
-  } (''
-    #mkdir -p $out/bin
-    makeWrapper ${launcher}/bin/launcher $out/bin/${mainProgram} \
-      ${concatStringsSep " " (flatten [
-        "--set BWRAP_EXE ${config.bubblewrap.package}/bin/bwrap"
-        "--set BUBBLEWRAP_ARGS ${bwrapArgsJson}"
-        (optionals config.dbus.enable "--set XDG_DBUS_PROXY_EXE ${dbusProxyWrapper}")
-        (optionals config.dbus.enable "--set XDG_DBUS_PROXY_ARGS ${dbusProxyArgsJson}")
-      ])}
-  '');
+  config.script = mkWrapperScript {
+    name = app.name or "app";
+    inherit mainProgram;
+  };
 
   config.env = pkgs.buildEnv {
     inherit (config.script) name;
     paths = [
-      (lib.hiPrio config.script)
-      (lib.hiPrio envOverrides)
+      (hiPrio config.script)
+      (hiPrio envOverrides)
       app
-    ];
+    ] ++ map hiPrio (attrValues extraEntrypointScripts);
   };
 }
