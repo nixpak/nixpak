@@ -52,6 +52,7 @@ in
         runtime = config.flatpak.runtimeId;
       };
       Context.shared = "${concatStringsSep ";" config.flatpak.sharedNamespaces};";
+      "Session Bus Policy" = config.dbus.policies;
     };
     infoFile = writeINI config.flatpak.info;
   };
