@@ -54,12 +54,6 @@
           inherit (pkgs) vim;
         }).config.env;
       };
-
-      bundlers = {
-        nixpak = drv: (import ./examples/bundler.nix {
-          inherit drv mkNixPak;
-        }).config.script;
-      };
     };
   };
 }
