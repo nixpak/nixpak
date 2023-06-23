@@ -19,6 +19,10 @@
 
   outputs = { self, nixpkgs, flake-parts, ... }@inputs:
   flake-parts.lib.mkFlake { inherit inputs; } {
+    imports = [
+      ./jobs/update-flake-lock
+    ];
+
     systems = [
       "x86_64-linux"
       "i686-linux"
