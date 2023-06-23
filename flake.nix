@@ -3,46 +3,58 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-parts = {
+      url = "github:hercules-ci/flake-parts";
+      inputs.nixpkgs-lib.follows = "nixpkgs";
+    };
+
+    hercules-ci-effects = {
+      url = "github:hercules-ci/hercules-ci-effects";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-parts.follows = "flake-parts";
+      };
+    };
   };
 
-  outputs = { self, nixpkgs, ... }@inputs: let
-    supportedSystems = [
+  outputs = { self, nixpkgs, flake-parts, ... }@inputs:
+  flake-parts.lib.mkFlake { inherit inputs; } {
+    systems = [
       "x86_64-linux"
       "i686-linux"
       "aarch64-linux"
     ];
-    forEachSystem = nixpkgs.lib.genAttrs supportedSystems;
-    forSystem = forEachSystem (system: {
+
+    flake.lib.nixpak = import ./modules;
+
+    perSystem = { pkgs, system, ... }: let
       mkNixPak = self.lib.nixpak {
         inherit (nixpkgs) lib;
         pkgs = nixpkgs.legacyPackages.x86_64-linux;
       };
-    });
-  in {
-    lib.nixpak = import ./modules;
+    in {
+      packages = {
+        busybox = (import ./examples/busybox.nix {
+          inherit mkNixPak;
+          inherit (pkgs) busybox;
+        }).config.script;
 
-    packages = forEachSystem (system: {
-      busybox = (import ./examples/busybox.nix {
-        inherit (forSystem.${system}) mkNixPak;
-        inherit (nixpkgs.legacyPackages.${system}) busybox;
-      }).config.script;
+        useless-curl = (import ./examples/network-isolation-demo.nix {
+          inherit mkNixPak;
+          inherit (pkgs) curl;
+        }).config.script;
 
-      useless-curl = (import ./examples/network-isolation-demo.nix {
-        inherit (forSystem.${system}) mkNixPak;
-        inherit (nixpkgs.legacyPackages.${system}) curl;
-      }).config.script;
+        vim = (import ./examples/multiple-executables.nix {
+          inherit mkNixPak;
+          inherit (pkgs) vim;
+        }).config.env;
+      };
 
-      vim = (import ./examples/multiple-executables.nix {
-        inherit (forSystem.${system}) mkNixPak;
-        inherit (nixpkgs.legacyPackages.${system}) vim;
-      }).config.env;
-    });
-
-    bundlers = forEachSystem (system: {
-      nixpak = drv: (import ./examples/bundler.nix {
-        inherit drv;
-        inherit (forSystem.${system}) mkNixPak; 
-      }).config.script;
-    });
+      bundlers = {
+        nixpak = drv: (import ./examples/bundler.nix {
+          inherit drv mkNixPak;
+        }).config.script;
+      };
+    };
   };
 }
