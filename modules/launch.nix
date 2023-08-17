@@ -50,7 +50,14 @@ let
   dbusOutsidePath = concat (env "XDG_RUNTIME_DIR") (concat "/nixpak-bus-" instanceId);
   
   bwrapArgs = flatten [
-    "--unshare-all"
+    # This is the equivalent of --unshare-all, see bwrap(1) for details.
+    "--unshare-user-try"
+    (optionals (!config.bubblewrap.shareIpc) "--unshare-ipc")
+    "--unshare-pid"
+    "--unshare-net"      
+    "--unshare-uts"
+    "--unshare-cgroup-try"
+
     bindPaths
     bindRoPaths
     envVars

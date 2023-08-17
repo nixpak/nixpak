@@ -30,7 +30,10 @@ in
     sharedNamespaces = mkOption {
       description = "Indicate shared/unshared status of namespaces";
       type = with types; listOf (enum [ "ipc" "network" ]);
-      default = lib.optional config.bubblewrap.network "network";
+      default = (
+        (lib.optional config.bubblewrap.network "network")
+        ++ (lib.optional config.bubblewrap.shareIpc "ipc")
+      );
     };
 
     info = mkOption {
