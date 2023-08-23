@@ -28,7 +28,7 @@ Also see the [examples directory](./examples)
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     nixpak = {
-      url = "github:max-privatevoid/nixpak";
+      url = "github:nixpak/nixpak";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
