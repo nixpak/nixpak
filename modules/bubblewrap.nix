@@ -51,6 +51,7 @@ in {
       wayland = mkMountToggle "the active Wayland socket" // { default = false; };
       pipewire = mkMountToggle "the first PipeWire socket" // { default = false; };
       x11 = mkMountToggle "all X11 sockets" // { default = false; };
+      pulse = mkMountToggle "the PulseAudio socket" // { default = false; };
     };
 
     package = mkOption {
@@ -80,6 +81,7 @@ in {
       ++ (optionals cfg.x11 [
         (sloth.env "XAUTHORITY")
         "/tmp/.X11-unix"
-      ]);
+      ])
+      ++ (optional cfg.pulse (sloth.concat' sloth.runtimeDir "/pulse"));
   };
 }
