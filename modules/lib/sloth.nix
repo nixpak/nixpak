@@ -86,6 +86,10 @@ in
 
     xdgConfigHome = sloth.envOr "XDG_CONFIG_HOME" (sloth.concat' sloth.homeDir "/.config");
 
+    xdgDataHome = sloth.envOr "XDG_DATA_HOME" (sloth.concat' sloth.homeDir "/.local/share");
+
+    xdgStateHome = sloth.envOr "XDG_STATE_HOME" (sloth.concat' sloth.homeDir "/.local/state");
+
     runtimeDir = sloth.env "XDG_RUNTIME_DIR";
   };
 }
