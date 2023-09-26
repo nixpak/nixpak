@@ -45,7 +45,8 @@ let
   tmpfs = map mountTmpfs config.bubblewrap.tmpfs;
 
   app = config.app.package;
-  info = pkgs.closureInfo { rootPaths = app; };
+  rootPaths = [ app ] ++ config.bubblewrap.extraStorePaths;
+  info = pkgs.closureInfo { inherit rootPaths; };
   launcher = pkgs.callPackage ../launcher {};
   dbusOutsidePath = concat (env "XDG_RUNTIME_DIR") (concat "/nixpak-bus-" instanceId);
   
@@ -77,12 +78,26 @@ let
 
     [ "--ro-bind" config.flatpak.infoFile "/.flatpak-info" ]
 
-    # TODO: use closureInfo instead
-    (bindRo "/nix/store")
+    (optionals config.bubblewrap.bindEntireStore (bindRo "/nix/store"))
   ];
   dbusProxyArgs = [ (env "DBUS_SESSION_BUS_ADDRESS") dbusOutsidePath ] ++ config.dbus.args ++ [ "--filter" ];
-  
-  bwrapArgsJson = pkgs.writeText "bwrap-args.json" (builtins.toJSON bwrapArgs);
+
+  originalBwrapArgs = pkgs.writeText "bwrap-args.json" (builtins.toJSON bwrapArgs);
+  bwrapArgsJson = pkgs.stdenvNoCC.mkDerivation {
+    name = "bwrap-args-json";
+    nativeBuildInputs = [ pkgs.jq ];
+    dontUnpack = true;
+    dontConfigure = true;
+    buildPhase = ''
+      jq -nR '[inputs] | map("--ro-bind", ., .)' ${info}/store-paths > store-paths.json
+      jq -s '.[0] + .[1]' ${originalBwrapArgs} store-paths.json > bwrap-args.json
+    '';
+    installPhase = ''
+      mkdir -p $out/share
+      install bwrap-args.json $out/share/
+    '';
+  };
+
   dbusProxyArgsJson = pkgs.writeText "xdg-dbus-proxy-args.json" (builtins.toJSON dbusProxyArgs);
 
   mainProgram = builtins.baseNameOf config.app.binPath;
@@ -99,7 +114,7 @@ let
       ${concatStringsSep " " (flatten [
         "--set BWRAP_EXE ${config.bubblewrap.package}/bin/bwrap"
         "--set NIXPAK_APP_EXE ${app}${executablePath}"
-        "--set BUBBLEWRAP_ARGS ${bwrapArgsJson}"
+        "--set BUBBLEWRAP_ARGS ${bwrapArgsJson}/share/bwrap-args.json"
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_EXE ${dbusProxyWrapper}")
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_ARGS ${dbusProxyArgsJson}")
       ])}

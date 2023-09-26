@@ -50,6 +50,7 @@ with lib;
       pathsToLink = "/etc/fonts";
     };
   in mkIf cfg.enable {
+    bubblewrap.extraStorePaths = [ fc ];
     bubblewrap.bind.ro = [
       [ "${fc}/etc/fonts" "/etc/fonts" ]
     ];
