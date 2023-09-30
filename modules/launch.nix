@@ -83,20 +83,12 @@ let
   dbusProxyArgs = [ (env "DBUS_SESSION_BUS_ADDRESS") dbusOutsidePath ] ++ config.dbus.args ++ [ "--filter" ];
 
   originalBwrapArgs = pkgs.writeText "bwrap-args.json" (builtins.toJSON bwrapArgs);
-  bwrapArgsJson = pkgs.stdenvNoCC.mkDerivation {
-    name = "bwrap-args-json";
+  bwrapArgsJson = if config.bubblewrap.bindEntireStore then originalBwrapArgs else pkgs.runCommand "bwrap-args.json" {
     nativeBuildInputs = [ pkgs.jq ];
-    dontUnpack = true;
-    dontConfigure = true;
-    buildPhase = ''
-      jq -nR '[inputs] | map("--ro-bind", ., .)' ${info}/store-paths > store-paths.json
-      jq -s '.[0] + .[1]' ${originalBwrapArgs} store-paths.json > bwrap-args.json
-    '';
-    installPhase = ''
-      mkdir -p $out/share
-      install bwrap-args.json $out/share/
-    '';
-  };
+  } ''
+    jq -nR '[inputs] | map("--ro-bind", ., .)' ${info}/store-paths > store-paths.json
+    jq -s '.[0] + .[1]' ${originalBwrapArgs} store-paths.json > $out
+  '';
 
   dbusProxyArgsJson = pkgs.writeText "xdg-dbus-proxy-args.json" (builtins.toJSON dbusProxyArgs);
 
@@ -114,7 +106,7 @@ let
       ${concatStringsSep " " (flatten [
         "--set BWRAP_EXE ${config.bubblewrap.package}/bin/bwrap"
         "--set NIXPAK_APP_EXE ${app}${executablePath}"
-        "--set BUBBLEWRAP_ARGS ${bwrapArgsJson}/share/bwrap-args.json"
+        "--set BUBBLEWRAP_ARGS ${bwrapArgsJson}"
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_EXE ${dbusProxyWrapper}")
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_ARGS ${dbusProxyArgsJson}")
       ])}
