@@ -45,7 +45,8 @@ let
   tmpfs = map mountTmpfs config.bubblewrap.tmpfs;
 
   app = config.app.package;
-  info = pkgs.closureInfo { rootPaths = app; };
+  rootPaths = [ app ] ++ config.bubblewrap.extraStorePaths;
+  info = pkgs.closureInfo { inherit rootPaths; };
   launcher = pkgs.callPackage ../launcher {};
   dbusOutsidePath = concat (env "XDG_RUNTIME_DIR") (concat "/nixpak-bus-" instanceId);
   
@@ -77,12 +78,18 @@ let
 
     [ "--ro-bind" config.flatpak.infoFile "/.flatpak-info" ]
 
-    # TODO: use closureInfo instead
-    (bindRo "/nix/store")
+    (optionals config.bubblewrap.bindEntireStore (bindRo "/nix/store"))
   ];
   dbusProxyArgs = [ (env "DBUS_SESSION_BUS_ADDRESS") dbusOutsidePath ] ++ config.dbus.args ++ [ "--filter" ];
-  
-  bwrapArgsJson = pkgs.writeText "bwrap-args.json" (builtins.toJSON bwrapArgs);
+
+  originalBwrapArgs = pkgs.writeText "bwrap-args.json" (builtins.toJSON bwrapArgs);
+  bwrapArgsJson = if config.bubblewrap.bindEntireStore then originalBwrapArgs else pkgs.runCommand "bwrap-args.json" {
+    nativeBuildInputs = [ pkgs.jq ];
+  } ''
+    jq -nR '[inputs] | map("--ro-bind", ., .)' ${info}/store-paths > store-paths.json
+    jq -s '.[0] + .[1]' ${originalBwrapArgs} store-paths.json > $out
+  '';
+
   dbusProxyArgsJson = pkgs.writeText "xdg-dbus-proxy-args.json" (builtins.toJSON dbusProxyArgs);
 
   mainProgram = builtins.baseNameOf config.app.binPath;

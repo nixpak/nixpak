@@ -47,6 +47,14 @@ in {
       default = [];
     };
 
+    bindEntireStore = mkEnableOption "Bind entire nix store." // { default = true; };
+
+    extraStorePaths = mkOption {
+      description = "Extra nix store paths that will be recursively bound.";
+      type = types.listOf types.package;
+      default = [];
+    };
+
     sockets = {
       wayland = mkMountToggle "the active Wayland socket" // { default = false; };
       pipewire = mkMountToggle "the first PipeWire socket" // { default = false; };
