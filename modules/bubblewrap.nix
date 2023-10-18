@@ -84,7 +84,9 @@ in {
     bubblewrap.bind.ro = let
       cfg = config.bubblewrap.sockets;
     in
-      (optional cfg.wayland (sloth.concat [sloth.runtimeDir "/" (sloth.envOr "WAYLAND_DISPLAY" "wayland-0")]))
+      (optional config.bubblewrap.network "/etc/resolv.conf")
+      ++ (optional config.bubblewrap.network "/etc/hosts")
+      ++ (optional cfg.wayland (sloth.concat [sloth.runtimeDir "/" (sloth.envOr "WAYLAND_DISPLAY" "wayland-0")]))
       ++ (optional cfg.pipewire (sloth.concat' sloth.runtimeDir "/pipewire-0"))
       ++ (optionals cfg.x11 [
         (sloth.env "XAUTHORITY")
