@@ -91,5 +91,21 @@ in
     xdgStateHome = sloth.envOr "XDG_STATE_HOME" (sloth.concat' sloth.homeDir "/.local/state");
 
     runtimeDir = sloth.env "XDG_RUNTIME_DIR";
+
+    xdgDesktopDir = sloth.envOr "XDG_DESKTOP_DIR" (sloth.concat' sloth.homeDir "/Desktop");
+
+    xdgDocumentsDir = sloth.envOr "XDG_DOCUMENTS_DIR" (sloth.concat' sloth.homeDir "/Documents");
+
+    xdgDownloadDir = sloth.envOr "XDG_DOWNLOAD_DIR" (sloth.concat' sloth.homeDir "/Downloads");
+
+    xdgMusicDir = sloth.envOr "XDG_MUSIC_DIR" (sloth.concat' sloth.homeDir "/Music");
+
+    xdgPicturesDir = sloth.envOr "XDG_PICTURES_DIR" (sloth.concat' sloth.homeDir "/Pictures");
+
+    xdgPublicShareDir = sloth.envOr "XDG_PUBLICSHARE_DIR" (sloth.concat' sloth.homeDir "/Public");
+
+    xdgTemplatesDir = sloth.envOr "XDG_TEMPLATES_DIR" (sloth.concat' sloth.homeDir "/Templates");
+
+    xdgVideosDir = sloth.envOr "XDG_VIDEOS_DIR" (sloth.concat' sloth.homeDir "/Videos");
   };
 }
