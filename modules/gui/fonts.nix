@@ -19,7 +19,7 @@ with lib;
         gyre-fonts
         source-sans
         source-code-pro
-        noto-fonts-emoji
+        noto-fonts-color-emoji
       ];
     };
   };
