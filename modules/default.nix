@@ -15,6 +15,7 @@ lib.evalModules {
     ./gpu.nix
     ./launch.nix
     ./locale.nix
+    ./monitor.nix
 
     ./flatpak-shim/flatpak-desktop-file.nix
     ./flatpak-shim/flatpak-info.nix
