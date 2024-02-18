@@ -46,6 +46,7 @@ let
 
   app = config.app.package;
   rootPaths = [ app ] ++ config.bubblewrap.extraStorePaths;
+  extraArgsScript = config.bubblewrap.extraArgsScript;
   info = pkgs.closureInfo { inherit rootPaths; };
   launcher = pkgs.callPackage ../launcher {};
   dbusOutsidePath = concat (env "XDG_RUNTIME_DIR") (concat "/nixpak-bus-" instanceId);
@@ -107,6 +108,7 @@ let
         "--set BWRAP_EXE ${config.bubblewrap.package}/bin/bwrap"
         "--set NIXPAK_APP_EXE ${app}${executablePath}"
         "--set BUBBLEWRAP_ARGS ${bwrapArgsJson}"
+        "--set BUBBLEWRAP_EXTRA_ARGS_SCRIPT ${extraArgsScript}"
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_EXE ${dbusProxyWrapper}")
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_ARGS ${dbusProxyArgsJson}")
       ])}
