@@ -8,5 +8,5 @@ buildGoModuleNoCC {
   pname = "nixpak-launcher";
   version = "2.0.0";
   src = ./.;
-  vendorSha256 = null;
+  vendorHash = null;
 }

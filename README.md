@@ -37,7 +37,7 @@ Also see the [examples directory](./examples)
     packages.x86_64-linux = let
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
 
-      mkNixPak = inputs.nixpak.lib.nixpak {
+      mkNixPak = nixpak.lib.nixpak {
         inherit (pkgs) lib;
         inherit pkgs;
       };
