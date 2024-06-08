@@ -25,7 +25,7 @@ in
     runtimeId = mkOption {
       description = "Fake runtime ID";
       type = types.str;
-      default = "runtime/com.nixpak.Platform/${flatpakArchitectures.${pkgs.system} or "unknown-arch-${pkgs.system}"}/1";
+      default = "runtime/com.nixpak.Platform/${flatpakArchitectures.${pkgs.stdenv.system} or "unknown-arch-${pkgs.stdenv.system}"}/1";
     };
     sharedNamespaces = mkOption {
       description = "Indicate shared/unshared status of namespaces";
