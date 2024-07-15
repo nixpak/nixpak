@@ -15,6 +15,11 @@
         flake-parts.follows = "flake-parts";
       };
     };
+
+    flake-compat = {
+      url = "github:edolstra/flake-compat";
+      flake = false;
+    };
   };
 
   outputs = { self, nixpkgs, flake-parts, ... }@inputs:
