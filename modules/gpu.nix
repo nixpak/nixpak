@@ -26,7 +26,7 @@ in
       default = pkgs.mesa.drivers;
     };
   };
-  config.bubblewrap = rec {
+  config.bubblewrap = mkIf config.gpu.enable rec {
     raw = {
       bind.ro = [
         "/sys/dev/char"
