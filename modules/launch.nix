@@ -186,7 +186,7 @@ in {
   };
 
   config.env = pkgs.buildEnv {
-    inherit (config.script) name;
+    inherit (config.script) name meta;
     paths = [
       (hiPrio config.script)
       (hiPrio envOverrides)
