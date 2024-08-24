@@ -50,7 +50,7 @@ type Concat struct {
 }
 
 func NewConcat(raw JsonRaw) (c Concat) {
-	c.Type = "env"
+	c.Type = "concat"
 	c.A = valToString(raw["a"])
 	c.B = valToString(raw["b"])
 	return
