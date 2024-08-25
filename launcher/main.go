@@ -77,6 +77,32 @@ func (i InstanceId) String() string {
 	return i.Id
 }
 
+type Uid struct {
+	Type      string
+}
+
+func NewUid(raw JsonRaw) (u Uid) {
+	u.Type = "uid"
+	return
+}
+
+func (u Uid) String() string {
+	return strconv.Itoa(os.Getuid())
+}
+
+type Gid struct {
+	Type      string
+}
+
+func NewGid(raw JsonRaw) (u Gid) {
+	u.Type = "gid"
+	return
+}
+
+func (u Gid) String() string {
+	return strconv.Itoa(os.Getgid())
+}
+
 type Mkdir struct {
 	Type string
 	Dir  string
@@ -118,6 +144,10 @@ func valToString(item interface{}) (ret string) {
 			ret = NewConcat(raw).String()
 		case "instanceId":
 			ret = NewInstanceId(raw).String()
+		case "uid":
+			ret = NewUid(raw).String()
+		case "gid":
+			ret = NewGid(raw).String()
 		case "mkdir":
 			ret = NewMkdir(raw).String()
 		default:
