@@ -182,3 +182,19 @@ sloth.concat [
 ]
 # looks something like "/run/user/1000/my-app-jim1rivq0gblz0vn6k32wgv7aq"
 ```
+
+#### `sloth.uid :: Sloth`
+
+UID of the user at runtime.
+
+```nix
+sloth.uid # results in "1000" at runtime
+```
+
+#### `sloth.gid :: Sloth`
+
+GID of the user at runtime.
+
+```nix
+sloth.gid # results in "100" at runtime
+```
