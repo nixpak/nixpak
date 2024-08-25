@@ -14,10 +14,12 @@ let
     description = "pair of ${elemType.description}";
   };
 
-  bindType = with types; listOf (oneOf [
+  slothValue = types.oneOf [
     (pairOf sloth.type)
     sloth.type
-  ]);
+  ];
+
+  bindType = types.listOf slothValue;
 in {
   options.bubblewrap = {
     network = mkEnableOption "network access in the sandbox" // { default = true; };
@@ -75,8 +77,14 @@ in {
 
     env = mkOption {
       description = "Environment variables to set.";
-      type = with types; attrsOf (nullOr str);
+      type = with types; attrsOf slothValue;
       default = {};
+    };
+
+    extraArgsScript = mkOption {
+      description = "Intermediate script to use for extra args. Script has all args passed in as arguments as input, and parses stdout json as new input.";
+      type = types.str;
+      default = "none";
     };
   };
 

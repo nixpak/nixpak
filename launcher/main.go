@@ -1,14 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"crypto/md5"
 	"encoding/base32"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -167,6 +170,26 @@ func main() {
 	bwrapArgs := readJsonArgs(bwrapArgsJson)
 	if useDbusProxy {
 		bwrapArgs = append([]string{"--sync-fd", strconv.Itoa(int(r.Fd()))}, bwrapArgs...)
+	}
+	// "none" is a special option here to ensure env variables dont leak through from the shell
+	val, found := os.LookupEnv("BUBBLEWRAP_EXTRA_ARGS_SCRIPT")
+	if found && val != "none" {
+			cmd := exec.Command(val, bwrapArgs...)
+
+			var buf bytes.Buffer
+			mw := io.MultiWriter(&buf, os.Stdout)
+
+			cmd.Stdout = mw
+			cmd.Stderr = os.Stderr
+
+			if err := cmd.Run(); err != nil {
+					panic(err)
+			}
+
+			output := buf.String()
+
+			newArgs := strings.Split(output, "\n")
+			bwrapArgs = newArgs[:len(newArgs) - 1]
 	}
 	bwrapArgs = append(bwrapArgs, appExe)
 	bwrapArgs = append(bwrapArgs, os.Args[1:]...)
