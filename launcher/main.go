@@ -50,7 +50,7 @@ type Concat struct {
 }
 
 func NewConcat(raw JsonRaw) (c Concat) {
-	c.Type = "env"
+	c.Type = "concat"
 	c.A = valToString(raw["a"])
 	c.B = valToString(raw["b"])
 	return
@@ -168,6 +168,7 @@ func main() {
 	if useDbusProxy {
 		bwrapArgs = append([]string{"--sync-fd", strconv.Itoa(int(r.Fd()))}, bwrapArgs...)
 	}
+	bwrapArgs = append(bwrapArgs, "--")
 	bwrapArgs = append(bwrapArgs, appExe)
 	bwrapArgs = append(bwrapArgs, os.Args[1:]...)
 
