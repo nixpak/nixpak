@@ -1,4 +1,4 @@
-{ config, lib, pkgs, ... }:
+{ config, lib, pkgs, sloth, ... }:
 with lib;
 let
   # most of the things here should probably be incorporated into a module
@@ -50,7 +50,18 @@ let
   launcher = pkgs.callPackage ../launcher {};
   dbusOutsidePath = concat (env "XDG_RUNTIME_DIR") (concat "/nixpak-bus-" instanceId);
   
+  pastaEnable = config.bubblewrap.network && config.pasta.enable;
+  originalBwrapExe = "${config.bubblewrap.package}/bin/bwrap";
+  bwrapExe = if pastaEnable then "${config.pasta.package}/bin/pasta" else originalBwrapExe;
   bwrapArgs = flatten [
+    (optionals pastaEnable [
+      config.pasta.args
+      "--"
+      originalBwrapExe
+      "--uid" sloth.uid
+      "--gid" sloth.gid
+    ])
+
     # This is the equivalent of --unshare-all, see bwrap(1) for details.
     "--unshare-user-try"
     (optionals (!config.bubblewrap.shareIpc) "--unshare-ipc")
@@ -104,7 +115,7 @@ let
   } (''
     makeWrapper ${launcher}/bin/launcher $out${executablePath} \
       ${concatStringsSep " " (flatten [
-        "--set BWRAP_EXE ${config.bubblewrap.package}/bin/bwrap"
+        "--set BWRAP_EXE ${bwrapExe}"
         "--set NIXPAK_APP_EXE ${app}${executablePath}"
         "--set BUBBLEWRAP_ARGS ${bwrapArgsJson}"
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_EXE ${dbusProxyWrapper}")
