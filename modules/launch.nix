@@ -97,8 +97,10 @@ let
   mkWrapperScript = {
     name,
     mainProgram ? null,
-    executablePath ? "/bin/${mainProgram}"
+    executablePath ? "/bin/${mainProgram}",
+    passthru ? {}
   }: pkgs.runCommandLocal "nixpak-${name}" {
+    inherit passthru;
     nativeBuildInputs = [ pkgs.makeWrapper ];
     meta = optionalAttrs (mainProgram != null) { inherit mainProgram; };
   } (''
@@ -164,6 +166,10 @@ let
       "--ro-bind-try ${config.flatpak.infoFile or "/.flatpak-info-not-found"} /.flatpak-info"
     ])} ${pkgs.xdg-dbus-proxy}/bin/xdg-dbus-proxy "$@"
   '';
+
+  passthru = {
+    nixpakExtendModules = config._module.args.extendModules;
+  };
 in {
   options = {
     script = mkOption {
@@ -182,11 +188,11 @@ in {
 
   config.script = mkWrapperScript {
     name = app.name or "app";
-    inherit mainProgram;
+    inherit mainProgram passthru;
   };
 
   config.env = pkgs.buildEnv {
-    inherit (config.script) name meta;
+    inherit (config.script) name meta passthru;
     paths = [
       (hiPrio config.script)
       (hiPrio envOverrides)
