@@ -168,7 +168,7 @@ let
   '';
 
   passthru = {
-    nixpakExtendModules = config._module.args.extendModules;
+    extendModules = config._module.args.extendModules;
   };
 in {
   options = {
