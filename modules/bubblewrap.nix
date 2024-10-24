@@ -14,10 +14,10 @@ let
     description = "pair of ${elemType.description}";
   };
 
-  bindType = with types; listOf (oneOf [
+  slothValue = types.oneOf [
     (pairOf sloth.type)
     sloth.type
-  ]);
+  ];
 in {
   options.bubblewrap = {
     network = mkEnableOption "network access in the sandbox" // { default = true; };
@@ -25,19 +25,19 @@ in {
 
     bind.rw = mkOption {
       description = "Read-write paths to bind-mount into the sandbox.";
-      type = bindType;
+      type = types.listOf slothValue;
       default = [];
     };
 
     bind.ro = mkOption {
       description = "Read-only paths to bind-mount into the sandbox.";
-      type = bindType;
+      type = types.listOf slothValue;
       default = [];
     };
 
     bind.dev = mkOption {
       description = "Devices to bind-mount into the sandbox.";
-      type = bindType;
+      type = types.listOf slothValue;
       default = [];
     };
 
@@ -75,7 +75,7 @@ in {
 
     env = mkOption {
       description = "Environment variables to set.";
-      type = with types; attrsOf (nullOr str);
+      type = with types; attrsOf (oneOf [ (nullOr str) slothValue ]);
       default = {};
     };
   };
