@@ -75,7 +75,7 @@ in {
 
     env = mkOption {
       description = "Environment variables to set.";
-      type = with types; attrsOf (oneOf [ null str sloth.type ] );
+      type = with types; attrsOf (nullOr sloth.type);
       default = {};
     };
   };
