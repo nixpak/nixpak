@@ -6,10 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"strconv"
 	"syscall"
+
+	"github.com/godbus/dbus/v5"
 )
 
 type JsonRaw = map[string]interface{}
@@ -139,7 +142,30 @@ func readJsonArgs(filename string) (args []string) {
 	return
 }
 
+func startSessionHelper(ready chan bool) {
+	conn, err := dbus.SessionBus()
+	if err != nil {
+		log.Println("Failed to connect to session bus")
+	}
+	defer conn.Close()
+
+	call := conn.Object("org.freedesktop.Flatpak", "/org/freedesktop/Flatpak/SessionHelper").Call(
+		"org.freedesktop.Flatpak.SessionHelper.RequestSession",
+		0,
+	)
+
+	if call.Err != nil {
+		log.Println("Failed to send command to session helper")
+		log.Println(call.Err.Error())
+	}
+
+	ready <- true
+}
+
 func main() {
+	sessionHelperReady := make(chan bool)
+	go startSessionHelper(sessionHelperReady)
+
 	bwrapExe := envOr("BWRAP_EXE", "bwrap")
 
 	bwrapArgsJson, foundBwrapArgs := os.LookupEnv("BUBBLEWRAP_ARGS")
@@ -189,6 +215,9 @@ func main() {
 			panic(err)
 		}
 	}
+
+	<-sessionHelperReady
+
 	// unset O_CLOEXEC
 	syscall.Syscall(syscall.SYS_FCNTL, r.Fd(), syscall.F_SETFD, 0)
 	syscall.Exec(bwrapExe, append([]string{bwrapExe}, bwrapArgs...), os.Environ())

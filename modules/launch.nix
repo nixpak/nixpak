@@ -35,12 +35,14 @@ let
   bind = bind' "--bind-try";
   bindRo = bind' "--ro-bind-try";
   bindDev = bind' "--dev-bind-try";
+  symlink = bind' "--symlink";
   setEnv = key: val: [ "--setenv" key val ];
   mountTmpfs = path: [ "--tmpfs" path ];
   
   bindPaths = map bind config.bubblewrap.bind.rw;
   bindRoPaths = map bindRo config.bubblewrap.bind.ro;
   bindDevPaths = map bindDev config.bubblewrap.bind.dev;
+  symlinkPaths = map symlink config.bubblewrap.symlink;
   envVars = mapAttrsToList setEnv config.bubblewrap.env;
   tmpfs = map mountTmpfs config.bubblewrap.tmpfs;
 
@@ -61,6 +63,7 @@ let
 
     bindPaths
     bindRoPaths
+    symlinkPaths
     envVars
     tmpfs
     
@@ -151,7 +154,10 @@ let
       substituteInPlace $line --replace ${app}${entrypoint} ${entrypointScript}${entrypoint}
     done
     rm -f $out${entrypoint}
-  '') config.app.extraEntrypoints));
+  '') config.app.extraEntrypoints) + lib.optionalString config.bubblewrap.monitor ''
+    install -m 644 -D {${pkgs.flatpak},$out}/share/systemd/user/flatpak-session-helper.service
+    install -m 644 -D {${pkgs.flatpak},$out}/share/dbus-1/services/org.freedesktop.Flatpak.service
+  '');
 
   # This is required because the Portal service reads /proc/$pid/root/.flatpak-info
   # from the calling PID, when dbus-proxy is in use, this PID is the dbus-proxy process
