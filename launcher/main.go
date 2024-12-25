@@ -169,6 +169,10 @@ func readJsonArgs(filename string) (args []string) {
 	return
 }
 
+type BwrapInfo struct {
+	ChildPid int `json:"child-pid"`
+}
+
 func run() error {
 	bwrapExe := envOr("BWRAP_EXE", "bwrap")
 
@@ -177,6 +181,7 @@ func run() error {
 		panic("No bubblewrap args given")
 	}
 	dbusproxyArgsJson, useDbusProxy := os.LookupEnv("XDG_DBUS_PROXY_ARGS")
+	pastaArgsJson, usePasta := os.LookupEnv("PASTA_ARGS")
 
 	appExe, foundAppExe := os.LookupEnv("NIXPAK_APP_EXE")
 	if !foundAppExe {
@@ -184,6 +189,7 @@ func run() error {
 	}
 
 	bwrapArgs := readJsonArgs(bwrapArgsJson)
+	bwrapArgs = append([]string{"--info-fd", "3", "--block-fd", "4"}, bwrapArgs...)
 	bwrapArgs = append(bwrapArgs, "--")
 	bwrapArgs = append(bwrapArgs, appExe)
 	bwrapArgs = append(bwrapArgs, os.Args[1:]...)
@@ -225,11 +231,69 @@ func run() error {
 	bwrap.Stdout = os.Stdout
 	bwrap.Stderr = os.Stderr
 
+	bwrapInfoRead, bwrapInfoWrite, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
+	defer bwrapInfoRead.Close()
+	defer bwrapInfoWrite.Close()
+	bwrapBlockRead, bwrapBlockWrite, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
+	defer bwrapBlockRead.Close()
+	defer bwrapBlockWrite.Close()
+	bwrap.ExtraFiles = []*os.File{bwrapInfoWrite, bwrapBlockRead}
+
 	if err := bwrap.Start(); err != nil {
 		panic(err)
 	}
 	defer bwrap.Wait()
 	defer syscall.Kill(-bwrap.Process.Pid, syscall.SIGKILL)
+
+	if err := bwrapInfoWrite.Close(); err != nil {
+		panic(err)
+	}
+	if err := bwrapBlockRead.Close(); err != nil {
+		panic(err)
+	}
+
+	var bwrapInfo BwrapInfo
+	if bytes, err := ioutil.ReadAll(bwrapInfoRead); err == nil {
+		if err := json.Unmarshal(bytes, &bwrapInfo); err != nil {
+			panic(err)
+		}
+		if bwrapInfo.ChildPid <= 0 {
+			panic("Unexpected child PID")
+		}
+	} else {
+		panic(err)
+	}
+	if err := bwrapInfoRead.Close(); err != nil {
+		panic(err)
+	}
+
+	if usePasta {
+		pastaExe := envOr("PASTA_EXE", "pasta")
+		pastaArgs := readJsonArgs(pastaArgsJson)
+		pastaArgs = append(pastaArgs, "--")
+		pastaArgs = append(pastaArgs, strconv.Itoa(bwrapInfo.ChildPid))
+
+		pasta := exec.Command(pastaExe, pastaArgs...)
+		pasta.Stdout = os.Stdout
+		pasta.Stderr = os.Stderr
+
+		if err := pasta.Run(); err != nil {
+			panic(err)
+		}
+	}
+
+	if _, err := bwrapBlockWrite.Write([]byte{'x'}); err != nil {
+		panic(err)
+	}
+	if err := bwrapBlockWrite.Close(); err != nil {
+		panic(err)
+	}
 
 	if err := bwrap.Wait(); err != nil {
 		if exiterr, ok := err.(*exec.ExitError); ok {
