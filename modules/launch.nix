@@ -1,4 +1,4 @@
-{ config, lib, pkgs, sloth, ... }:
+{ config, lib, pkgs, ... }:
 with lib;
 let
   # most of the things here should probably be incorporated into a module
@@ -51,17 +51,8 @@ let
   dbusOutsidePath = concat (env "XDG_RUNTIME_DIR") (concat "/nixpak-bus-" instanceId);
   
   pastaEnable = config.bubblewrap.network && config.pasta.enable;
-  originalBwrapExe = "${config.bubblewrap.package}/bin/bwrap";
-  bwrapExe = if pastaEnable then "${config.pasta.package}/bin/pasta" else originalBwrapExe;
-  bwrapArgs = flatten [
-    (optionals pastaEnable [
-      config.pasta.args
-      "--"
-      originalBwrapExe
-      "--uid" sloth.uid
-      "--gid" sloth.gid
-    ])
 
+  bwrapArgs = flatten [
     # This is the equivalent of --unshare-all, see bwrap(1) for details.
     "--unshare-user-try"
     (optionals (!config.bubblewrap.shareIpc) "--unshare-ipc")
@@ -75,7 +66,7 @@ let
     envVars
     tmpfs
     
-    (optionals config.bubblewrap.network "--share-net")
+    (optionals (config.bubblewrap.network && !config.pasta.enable) "--share-net")
     (optionals config.bubblewrap.apivfs.dev ["--dev" "/dev"])
     (optionals config.bubblewrap.apivfs.proc ["--proc" "/proc"])
 
@@ -103,6 +94,8 @@ let
 
   dbusProxyArgsJson = pkgs.writeText "xdg-dbus-proxy-args.json" (builtins.toJSON dbusProxyArgs);
 
+  pastaArgsJson = pkgs.writeText "pasta-args.json" (builtins.toJSON config.pasta.args);
+
   mainProgram = builtins.baseNameOf config.app.binPath;
 
   mkWrapperScript = {
@@ -117,11 +110,13 @@ let
   } (''
     makeWrapper ${launcher}/bin/launcher $out${executablePath} \
       ${concatStringsSep " " (flatten [
-        "--set BWRAP_EXE ${bwrapExe}"
+        "--set BWRAP_EXE ${config.bubblewrap.package}/bin/bwrap"
         "--set NIXPAK_APP_EXE ${app}${executablePath}"
         "--set BUBBLEWRAP_ARGS ${bwrapArgsJson}"
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_EXE ${dbusProxyWrapper}")
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_ARGS ${dbusProxyArgsJson}")
+        (optionals pastaEnable "--set PASTA_EXE ${config.pasta.package}/bin/pasta")
+        (optionals pastaEnable "--set PASTA_ARGS ${pastaArgsJson}")
       ])}
   '');
 
