@@ -169,7 +169,7 @@ func readJsonArgs(filename string) (args []string) {
 	return
 }
 
-func main() {
+func run() error {
 	bwrapExe := envOr("BWRAP_EXE", "bwrap")
 
 	bwrapArgsJson, foundBwrapArgs := os.LookupEnv("BUBBLEWRAP_ARGS")
@@ -183,43 +183,71 @@ func main() {
 		panic("No executable given")
 	}
 
-	var r, w *os.File
-	var dbusproxyExe string
-	if useDbusProxy {
-		dbusproxyExe = envOr("XDG_DBUS_PROXY_EXE", "xdg-dbus-proxy")
-		var err error
-		r, w, err = os.Pipe()
-		if err != nil {
-			panic(err)
-		}
-	}
-
 	bwrapArgs := readJsonArgs(bwrapArgsJson)
-	if useDbusProxy {
-		bwrapArgs = append([]string{"--sync-fd", strconv.Itoa(int(r.Fd()))}, bwrapArgs...)
-	}
 	bwrapArgs = append(bwrapArgs, "--")
 	bwrapArgs = append(bwrapArgs, appExe)
 	bwrapArgs = append(bwrapArgs, os.Args[1:]...)
 
 	if useDbusProxy {
+		dbusproxyExe := envOr("XDG_DBUS_PROXY_EXE", "xdg-dbus-proxy")
 		dbusproxyArgs := readJsonArgs(dbusproxyArgsJson)
-		dbus := exec.Command(dbusproxyExe, append([]string{"--fd=3"}, dbusproxyArgs...)...)
+		dbusproxyArgs = append([]string{"--fd=3"}, dbusproxyArgs...)
+
+		dbus := exec.Command(dbusproxyExe, dbusproxyArgs...)
 		dbus.Stdout = os.Stdout
 		dbus.Stderr = os.Stderr
 
-		dbus.ExtraFiles = []*os.File{w}
+		dbusSyncRead, dbusSyncWrite, err := os.Pipe()
+		if err != nil {
+			panic(err)
+		}
+		defer dbusSyncRead.Close()
+		defer dbusSyncWrite.Close()
+		dbus.ExtraFiles = []*os.File{dbusSyncWrite}
 
 		if err := dbus.Start(); err != nil {
 			panic(err)
 		}
+		defer dbus.Wait()
+		defer dbusSyncRead.Close()
 
-		w.Close()
-		if _, err := r.Read([]byte{'x'}); err != nil {
+		if err := dbusSyncWrite.Close(); err != nil {
+			panic(err)
+		}
+
+		if _, err := dbusSyncRead.Read([]byte{'x'}); err != nil {
 			panic(err)
 		}
 	}
-	// unset O_CLOEXEC
-	syscall.Syscall(syscall.SYS_FCNTL, r.Fd(), syscall.F_SETFD, 0)
-	syscall.Exec(bwrapExe, append([]string{bwrapExe}, bwrapArgs...), os.Environ())
+
+	bwrap := exec.Command(bwrapExe, bwrapArgs...)
+	bwrap.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	bwrap.Stdout = os.Stdout
+	bwrap.Stderr = os.Stderr
+
+	if err := bwrap.Start(); err != nil {
+		panic(err)
+	}
+	defer bwrap.Wait()
+	defer syscall.Kill(-bwrap.Process.Pid, syscall.SIGKILL)
+
+	if err := bwrap.Wait(); err != nil {
+		if exiterr, ok := err.(*exec.ExitError); ok {
+			return exiterr
+		} else {
+			panic(err)
+		}
+	}
+
+	return nil
+}
+
+func main() {
+	if err := run(); err != nil {
+		if exiterr, ok := err.(*exec.ExitError); ok {
+			os.Exit(exiterr.ExitCode())
+		} else {
+			panic(err)
+		}
+	}
 }
