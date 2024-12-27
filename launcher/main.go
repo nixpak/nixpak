@@ -214,72 +214,120 @@ func readConfig() (conf Config) {
 	return
 }
 
+type Dbus struct {
+	Cmd      *exec.Cmd
+	SyncRead *os.File
+}
+
+func StartDbusproxy(conf Config) (dbus Dbus) {
+	failed := true
+
+	dbusproxyArgs := append([]string{"--fd=3"}, conf.DbusproxyArgs...)
+
+	cmd := exec.Command(conf.DbusproxyExe, dbusproxyArgs...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	dbusSyncRead, dbusSyncWrite, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		if failed {
+			dbusSyncRead.Close()
+			dbusSyncWrite.Close()
+		}
+	}()
+	cmd.ExtraFiles = []*os.File{dbusSyncWrite}
+
+	dbus.Cmd = cmd
+	dbus.SyncRead = dbusSyncRead
+
+	if err := cmd.Start(); err != nil {
+		panic(err)
+	}
+	defer func() {
+		if failed {
+			dbus.Close()
+		}
+	}()
+
+	if err := dbusSyncWrite.Close(); err != nil {
+		panic(err)
+	}
+
+	failed = false
+	return
+}
+
+func (dbus *Dbus) WaitUntilStartup() {
+	if _, err := dbus.SyncRead.Read([]byte{'x'}); err != nil {
+		panic(err)
+	}
+}
+
+func (dbus *Dbus) Close() {
+	dbus.SyncRead.Close()
+	dbus.Cmd.Wait()
+}
+
 type BwrapInfo struct {
 	ChildPid int `json:"child-pid"`
 }
 
-func run() error {
-	conf := readConfig()
+type Bwrap struct {
+	Cmd        *exec.Cmd
+	InfoRead   *os.File
+	BlockWrite *os.File
+}
 
-	if conf.UseDbusProxy {
-		dbusproxyArgs := append([]string{"--fd=3"}, conf.DbusproxyArgs...)
-
-		dbus := exec.Command(conf.DbusproxyExe, dbusproxyArgs...)
-		dbus.Stdout = os.Stdout
-		dbus.Stderr = os.Stderr
-
-		dbusSyncRead, dbusSyncWrite, err := os.Pipe()
-		if err != nil {
-			panic(err)
-		}
-		defer dbusSyncRead.Close()
-		defer dbusSyncWrite.Close()
-		dbus.ExtraFiles = []*os.File{dbusSyncWrite}
-
-		if err := dbus.Start(); err != nil {
-			panic(err)
-		}
-		defer dbus.Wait()
-		defer dbusSyncRead.Close()
-
-		if err := dbusSyncWrite.Close(); err != nil {
-			panic(err)
-		}
-
-		if _, err := dbusSyncRead.Read([]byte{'x'}); err != nil {
-			panic(err)
-		}
-	}
+func StartBwrap(conf Config) (bwrap Bwrap) {
+	failed := true
 
 	bwrapArgs := append([]string{"--info-fd", "3", "--block-fd", "4"}, conf.BwrapArgs...)
 	bwrapArgs = append(bwrapArgs, "--")
 	bwrapArgs = append(bwrapArgs, conf.AppExe)
 	bwrapArgs = append(bwrapArgs, conf.AppArgs...)
 
-	bwrap := exec.Command(conf.BwrapExe, bwrapArgs...)
-	bwrap.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	bwrap.Stdout = os.Stdout
-	bwrap.Stderr = os.Stderr
+	cmd := exec.Command(conf.BwrapExe, bwrapArgs...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
 	bwrapInfoRead, bwrapInfoWrite, err := os.Pipe()
 	if err != nil {
 		panic(err)
 	}
-	defer bwrapInfoRead.Close()
-	defer bwrapInfoWrite.Close()
+	defer func() {
+		if failed {
+			bwrapInfoRead.Close()
+			bwrapInfoWrite.Close()
+		}
+	}()
 	bwrapBlockRead, bwrapBlockWrite, err := os.Pipe()
 	if err != nil {
 		panic(err)
 	}
-	defer bwrapBlockRead.Close()
-	defer bwrapBlockWrite.Close()
-	bwrap.ExtraFiles = []*os.File{bwrapInfoWrite, bwrapBlockRead}
+	defer func() {
+		if failed {
+			bwrapBlockRead.Close()
+			bwrapBlockWrite.Close()
+		}
+	}()
+	cmd.ExtraFiles = []*os.File{bwrapInfoWrite, bwrapBlockRead}
 
-	if err := bwrap.Start(); err != nil {
+	bwrap.Cmd = cmd
+	bwrap.InfoRead = bwrapInfoRead
+	bwrap.BlockWrite = bwrapBlockWrite
+
+	if err := cmd.Start(); err != nil {
 		panic(err)
 	}
-	defer bwrap.Wait()
-	defer syscall.Kill(-bwrap.Process.Pid, syscall.SIGKILL)
+	defer func() {
+		if failed {
+			bwrap.Close()
+		}
+	}()
 
 	if err := bwrapInfoWrite.Close(); err != nil {
 		panic(err)
@@ -288,8 +336,12 @@ func run() error {
 		panic(err)
 	}
 
-	var bwrapInfo BwrapInfo
-	if bytes, err := ioutil.ReadAll(bwrapInfoRead); err == nil {
+	failed = false
+	return
+}
+
+func (bwrap *Bwrap) WaitUntilSandboxReady() (bwrapInfo BwrapInfo) {
+	if bytes, err := ioutil.ReadAll(bwrap.InfoRead); err == nil {
 		if err := json.Unmarshal(bytes, &bwrapInfo); err != nil {
 			panic(err)
 		}
@@ -299,31 +351,65 @@ func run() error {
 	} else {
 		panic(err)
 	}
-	if err := bwrapInfoRead.Close(); err != nil {
+	if err := bwrap.InfoRead.Close(); err != nil {
 		panic(err)
 	}
+
+	return
+}
+
+func (bwrap *Bwrap) NotifySandboxFinished() {
+	if _, err := bwrap.BlockWrite.Write([]byte{'x'}); err != nil {
+		panic(err)
+	}
+	if err := bwrap.BlockWrite.Close(); err != nil {
+		panic(err)
+	}
+}
+
+func (bwrap *Bwrap) WaitUntilExit() error {
+	return bwrap.Cmd.Wait()
+}
+
+func (bwrap *Bwrap) Close() {
+	syscall.Kill(-bwrap.Cmd.Process.Pid, syscall.SIGKILL)
+	bwrap.Cmd.Wait()
+	bwrap.BlockWrite.Close()
+	bwrap.InfoRead.Close()
+}
+
+func StartPasta(conf Config, pid int) {
+	pastaArgs := append(conf.PastaArgs, "--")
+	pastaArgs = append(pastaArgs, strconv.Itoa(pid))
+
+	pasta := exec.Command(conf.PastaExe, pastaArgs...)
+	pasta.Stdout = os.Stdout
+	pasta.Stderr = os.Stderr
+
+	if err := pasta.Run(); err != nil {
+		panic(err)
+	}
+}
+
+func run() error {
+	conf := readConfig()
+
+	if conf.UseDbusProxy {
+		dbus := StartDbusproxy(conf)
+		defer dbus.Close()
+		dbus.WaitUntilStartup()
+	}
+
+	bwrap := StartBwrap(conf)
+	defer bwrap.Close()
+	bwrapInfo := bwrap.WaitUntilSandboxReady()
 
 	if conf.UsePasta {
-		pastaArgs := append(conf.PastaArgs, "--")
-		pastaArgs = append(pastaArgs, strconv.Itoa(bwrapInfo.ChildPid))
-
-		pasta := exec.Command(conf.PastaExe, pastaArgs...)
-		pasta.Stdout = os.Stdout
-		pasta.Stderr = os.Stderr
-
-		if err := pasta.Run(); err != nil {
-			panic(err)
-		}
+		StartPasta(conf, bwrapInfo.ChildPid)
 	}
 
-	if _, err := bwrapBlockWrite.Write([]byte{'x'}); err != nil {
-		panic(err)
-	}
-	if err := bwrapBlockWrite.Close(); err != nil {
-		panic(err)
-	}
-
-	if err := bwrap.Wait(); err != nil {
+	bwrap.NotifySandboxFinished()
+	if err := bwrap.WaitUntilExit(); err != nil {
 		if exiterr, ok := err.(*exec.ExitError); ok {
 			return exiterr
 		} else {
