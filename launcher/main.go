@@ -169,37 +169,62 @@ func readJsonArgs(filename string) (args []string) {
 	return
 }
 
-type BwrapInfo struct {
-	ChildPid int `json:"child-pid"`
+type Config struct {
+	AppExe        string
+	AppArgs       []string
+	BwrapExe      string
+	BwrapArgs     []string
+	UseDbusProxy  bool
+	DbusproxyExe  string
+	DbusproxyArgs []string
+	UsePasta      bool
+	PastaExe      string
+	PastaArgs     []string
 }
 
-func run() error {
-	bwrapExe := envOr("BWRAP_EXE", "bwrap")
+func readConfig() (conf Config) {
+	appExe, foundAppExe := os.LookupEnv("NIXPAK_APP_EXE")
+	if !foundAppExe {
+		panic("No executable given")
+	}
+	conf.AppExe = appExe
+	conf.AppArgs = os.Args[1:]
 
 	bwrapArgsJson, foundBwrapArgs := os.LookupEnv("BUBBLEWRAP_ARGS")
 	if !foundBwrapArgs {
 		panic("No bubblewrap args given")
 	}
-	dbusproxyArgsJson, useDbusProxy := os.LookupEnv("XDG_DBUS_PROXY_ARGS")
-	pastaArgsJson, usePasta := os.LookupEnv("PASTA_ARGS")
+	conf.BwrapArgs = readJsonArgs(bwrapArgsJson)
+	conf.BwrapExe = envOr("BWRAP_EXE", "bwrap")
 
-	appExe, foundAppExe := os.LookupEnv("NIXPAK_APP_EXE")
-	if !foundAppExe {
-		panic("No executable given")
+	dbusproxyArgsJson, useDbusProxy := os.LookupEnv("XDG_DBUS_PROXY_ARGS")
+	conf.UseDbusProxy = useDbusProxy
+	if useDbusProxy {
+		conf.DbusproxyArgs = readJsonArgs(dbusproxyArgsJson)
+		conf.DbusproxyExe = envOr("XDG_DBUS_PROXY_EXE", "xdg-dbus-proxy")
 	}
 
-	bwrapArgs := readJsonArgs(bwrapArgsJson)
-	bwrapArgs = append([]string{"--info-fd", "3", "--block-fd", "4"}, bwrapArgs...)
-	bwrapArgs = append(bwrapArgs, "--")
-	bwrapArgs = append(bwrapArgs, appExe)
-	bwrapArgs = append(bwrapArgs, os.Args[1:]...)
+	pastaArgsJson, usePasta := os.LookupEnv("PASTA_ARGS")
+	conf.UsePasta = usePasta
+	if usePasta {
+		conf.PastaArgs = readJsonArgs(pastaArgsJson)
+		conf.PastaExe = envOr("PASTA_EXE", "pasta")
+	}
 
-	if useDbusProxy {
-		dbusproxyExe := envOr("XDG_DBUS_PROXY_EXE", "xdg-dbus-proxy")
-		dbusproxyArgs := readJsonArgs(dbusproxyArgsJson)
-		dbusproxyArgs = append([]string{"--fd=3"}, dbusproxyArgs...)
+	return
+}
 
-		dbus := exec.Command(dbusproxyExe, dbusproxyArgs...)
+type BwrapInfo struct {
+	ChildPid int `json:"child-pid"`
+}
+
+func run() error {
+	conf := readConfig()
+
+	if conf.UseDbusProxy {
+		dbusproxyArgs := append([]string{"--fd=3"}, conf.DbusproxyArgs...)
+
+		dbus := exec.Command(conf.DbusproxyExe, dbusproxyArgs...)
 		dbus.Stdout = os.Stdout
 		dbus.Stderr = os.Stderr
 
@@ -226,7 +251,12 @@ func run() error {
 		}
 	}
 
-	bwrap := exec.Command(bwrapExe, bwrapArgs...)
+	bwrapArgs := append([]string{"--info-fd", "3", "--block-fd", "4"}, conf.BwrapArgs...)
+	bwrapArgs = append(bwrapArgs, "--")
+	bwrapArgs = append(bwrapArgs, conf.AppExe)
+	bwrapArgs = append(bwrapArgs, conf.AppArgs...)
+
+	bwrap := exec.Command(conf.BwrapExe, bwrapArgs...)
 	bwrap.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	bwrap.Stdout = os.Stdout
 	bwrap.Stderr = os.Stderr
@@ -273,13 +303,11 @@ func run() error {
 		panic(err)
 	}
 
-	if usePasta {
-		pastaExe := envOr("PASTA_EXE", "pasta")
-		pastaArgs := readJsonArgs(pastaArgsJson)
-		pastaArgs = append(pastaArgs, "--")
+	if conf.UsePasta {
+		pastaArgs := append(conf.PastaArgs, "--")
 		pastaArgs = append(pastaArgs, strconv.Itoa(bwrapInfo.ChildPid))
 
-		pasta := exec.Command(pastaExe, pastaArgs...)
+		pasta := exec.Command(conf.PastaExe, pastaArgs...)
 		pasta.Stdout = os.Stdout
 		pasta.Stderr = os.Stderr
 
