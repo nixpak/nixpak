@@ -215,7 +215,7 @@ func readConfig() (conf Config) {
 }
 
 type Dbus struct {
-	Cmd *exec.Cmd
+	Cmd      *exec.Cmd
 	SyncRead *os.File
 }
 
@@ -276,8 +276,8 @@ type BwrapInfo struct {
 }
 
 type Bwrap struct {
-	Cmd *exec.Cmd
-	InfoRead *os.File
+	Cmd        *exec.Cmd
+	InfoRead   *os.File
 	BlockWrite *os.File
 }
 
@@ -378,7 +378,7 @@ func (bwrap *Bwrap) Close() {
 	bwrap.InfoRead.Close()
 }
 
-func StartPasta(conf Config, pid uint64) {
+func StartPasta(conf Config, pid int) {
 	pastaArgs := append(conf.PastaArgs, "--")
 	pastaArgs = append(pastaArgs, strconv.Itoa(pid))
 
