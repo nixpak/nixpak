@@ -8,8 +8,11 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strconv"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 type JsonRaw = map[string]interface{}
@@ -279,6 +282,7 @@ type Bwrap struct {
 	Cmd        *exec.Cmd
 	InfoRead   *os.File
 	BlockWrite *os.File
+	Info       BwrapInfo
 }
 
 func StartBwrap(conf Config) (bwrap Bwrap) {
@@ -348,6 +352,7 @@ func (bwrap *Bwrap) WaitUntilSandboxReady() (bwrapInfo BwrapInfo) {
 		if bwrapInfo.ChildPid <= 0 {
 			panic("Unexpected child PID")
 		}
+		bwrap.Info = bwrapInfo
 	} else {
 		panic(err)
 	}
@@ -367,12 +372,22 @@ func (bwrap *Bwrap) NotifySandboxFinished() {
 	}
 }
 
-func (bwrap *Bwrap) WaitUntilExit() error {
+func (bwrap *Bwrap) WaitUntilParentExit() error {
 	return bwrap.Cmd.Wait()
 }
 
+func (bwrap *Bwrap) WaitUntilChildExit() {
+	bwrapChild, err := os.FindProcess(bwrap.Info.ChildPid)
+	if err != nil {
+		panic(err)
+	}
+	if _, err := bwrapChild.Wait(); err != nil {
+		panic(err)
+	}
+}
+
 func (bwrap *Bwrap) Close() {
-	syscall.Kill(-bwrap.Cmd.Process.Pid, syscall.SIGKILL)
+	syscall.Kill(bwrap.Cmd.Process.Pid, syscall.SIGKILL)
 	bwrap.Cmd.Wait()
 	bwrap.BlockWrite.Close()
 	bwrap.InfoRead.Close()
@@ -391,7 +406,72 @@ func StartPasta(conf Config, pid int) {
 	}
 }
 
+type ChildReaper struct {
+	Signals chan os.Signal
+}
+
+func StartChildReaper() (reaper ChildReaper) {
+	if err := unix.Prctl(unix.PR_SET_CHILD_SUBREAPER, uintptr(1), 0, 0, 0); err != nil {
+		panic(err)
+	}
+
+	reaper.Signals = make(chan os.Signal, 1)
+	reaper.Open()
+
+	go func() {
+		for {
+			<-reaper.Signals
+			for reaper.ReapChild(false) {
+			}
+		}
+	}()
+
+	return
+}
+
+func (reaper *ChildReaper) Open() {
+	signal.Notify(reaper.Signals, unix.SIGCHLD)
+}
+
+func (reaper *ChildReaper) ReapChild(wait bool) bool {
+	options := 0
+	if !wait {
+		options = unix.WNOHANG
+	}
+
+	for {
+		var status unix.WaitStatus
+		var err error
+		pid, err := unix.Wait4(-1, &status, options, nil)
+		switch err {
+		case nil:
+			return pid > 0
+		case unix.ECHILD:
+			return false
+		case unix.EINTR:
+			continue
+		default:
+			panic(err)
+		}
+	}
+}
+
+func (reaper *ChildReaper) WaitAndReapAllChildren() {
+	reaper.Close()
+	for reaper.ReapChild(true) {
+	}
+	reaper.Open()
+}
+
+func (reaper *ChildReaper) Close() {
+	signal.Stop(reaper.Signals)
+}
+
 func run() error {
+	reaper := StartChildReaper()
+	defer reaper.Close()
+	defer reaper.WaitAndReapAllChildren()
+
 	conf := readConfig()
 
 	if conf.UseDbusProxy {
@@ -409,13 +489,15 @@ func run() error {
 	}
 
 	bwrap.NotifySandboxFinished()
-	if err := bwrap.WaitUntilExit(); err != nil {
+	if err := bwrap.WaitUntilParentExit(); err != nil {
 		if exiterr, ok := err.(*exec.ExitError); ok {
 			return exiterr
 		} else {
 			panic(err)
 		}
 	}
+
+	bwrap.WaitUntilChildExit()
 
 	return nil
 }
