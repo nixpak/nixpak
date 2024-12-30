@@ -272,7 +272,7 @@ func (dbus *Dbus) Close() {
 }
 
 type BwrapInfo struct {
-	ChildPid uint64 `json:"child-pid"`
+	ChildPid int `json:"child-pid"`
 }
 
 type Bwrap struct {
@@ -380,7 +380,7 @@ func (bwrap *Bwrap) Close() {
 
 func StartPasta(conf Config, pid uint64) {
 	pastaArgs := append(conf.PastaArgs, "--")
-	pastaArgs = append(pastaArgs, strconv.FormatUint(pid, 10))
+	pastaArgs = append(pastaArgs, strconv.Itoa(pid))
 
 	pasta := exec.Command(conf.PastaExe, pastaArgs...)
 	pasta.Stdout = os.Stdout
