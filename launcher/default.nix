@@ -1,12 +1,8 @@
-{ buildGoModule, stdenvNoCC }:
+{ buildGoModule }:
 
-let
-  buildGoModuleNoCC = buildGoModule.override { stdenv = stdenvNoCC; };
-in
-
-buildGoModuleNoCC {
+buildGoModule {
   pname = "nixpak-launcher";
   version = "2.0.0";
   src = ./.;
-  vendorHash = null;
+  vendorHash = "sha256-qIdz2WT+Z7zLCNvW7ddeKFw0APPF35BnJaG5Biz8G18=";
 }
