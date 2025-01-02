@@ -24,6 +24,13 @@ in
       type = "instanceId";
     };
 
+    uid = {
+      type = "uid";
+    };
+    gid = {
+      type = "gid";
+    };
+
     env = key: {
       inherit key;
       type = "env";
