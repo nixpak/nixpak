@@ -173,16 +173,16 @@ func readJsonArgs(filename string) (args []string) {
 }
 
 type Config struct {
-	AppExe string
-	AppArgs []string
-	BwrapExe string
-	BwrapArgs []string
-	UseDbusProxy bool
-	DbusproxyExe string
+	AppExe        string
+	AppArgs       []string
+	BwrapExe      string
+	BwrapArgs     []string
+	UseDbusProxy  bool
+	DbusproxyExe  string
 	DbusproxyArgs []string
-	UsePasta bool
-	PastaExe string
-	PastaArgs []string
+	UsePasta      bool
+	PastaExe      string
+	PastaArgs     []string
 }
 
 func readConfig() (conf Config) {
