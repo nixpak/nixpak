@@ -53,6 +53,11 @@
           inherit mkNixPak;
           inherit (pkgs) vim;
         }).config.env;
+
+        pasta = (import ./examples/pasta.nix {
+          inherit mkNixPak;
+          inherit (pkgs) busybox iproute2 curl;
+        }).config.script;
       };
     };
   };
