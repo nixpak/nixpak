@@ -1,15 +1,20 @@
 package main
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/base32"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"syscall"
+
+	"github.com/coreos/go-systemd/v22/dbus"
 )
 
 type JsonRaw = map[string]interface{}
@@ -139,7 +144,51 @@ func readJsonArgs(filename string) (args []string) {
 	return
 }
 
+func startSessionHelper(ready chan bool, sessionHelperPath string) {
+	conn, conn_err := dbus.NewUserConnectionContext(context.Background())
+
+	if conn_err != nil {
+		log.Println("Failed to connect to session bus")
+		log.Println(conn_err.Error())
+	}
+
+	_, start_err := conn.StartUnitContext(
+		context.Background(),
+		"flatpak-session-helper.service",
+		"fail",
+		nil,
+	)
+
+	if start_err != nil {
+		_, startnew_err := conn.StartTransientUnitContext(
+			context.Background(),
+			"flatpak-session-helper.service",
+			"fail",
+			[]dbus.Property{
+				dbus.PropDescription("Flatpak Session Helper for Nixpak"),
+				dbus.PropExecStart([]string {sessionHelperPath}, true),
+			},
+			nil,
+		)
+
+		if startnew_err != nil {
+			log.Println("Failed to start transient session helper service!")
+			log.Println(startnew_err.Error())
+		}
+	}
+
+	ready <- true
+}
+
 func main() {
+	sessionHelperReady := make(chan bool, 1)
+	sessionHelperPath, foundSessionHelperPath := os.LookupEnv("SESSION_HELPER_EXE")
+	if foundSessionHelperPath {
+		go startSessionHelper(sessionHelperReady, sessionHelperPath)
+	} else {
+		sessionHelperReady <- true
+	}
+
 	bwrapExe := envOr("BWRAP_EXE", "bwrap")
 
 	bwrapArgsJson, foundBwrapArgs := os.LookupEnv("BUBBLEWRAP_ARGS")
@@ -189,6 +238,9 @@ func main() {
 			panic(err)
 		}
 	}
+
+	<-sessionHelperReady
+
 	// unset O_CLOEXEC
 	syscall.Syscall(syscall.SYS_FCNTL, r.Fd(), syscall.F_SETFD, 0)
 	syscall.Exec(bwrapExe, append([]string{bwrapExe}, bwrapArgs...), os.Environ())

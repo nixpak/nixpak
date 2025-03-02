@@ -35,12 +35,14 @@ let
   bind = bind' "--bind-try";
   bindRo = bind' "--ro-bind-try";
   bindDev = bind' "--dev-bind-try";
+  symlink = bind' "--symlink";
   setEnv = key: val: [ "--setenv" key val ];
   mountTmpfs = path: [ "--tmpfs" path ];
   
   bindPaths = map bind config.bubblewrap.bind.rw;
   bindRoPaths = map bindRo config.bubblewrap.bind.ro;
   bindDevPaths = map bindDev config.bubblewrap.bind.dev;
+  symlinkPaths = map symlink config.bubblewrap.symlink;
   envVars = mapAttrsToList setEnv config.bubblewrap.env;
   tmpfs = map mountTmpfs config.bubblewrap.tmpfs;
 
@@ -61,6 +63,7 @@ let
 
     bindPaths
     bindRoPaths
+    symlinkPaths
     envVars
     tmpfs
     
@@ -109,6 +112,10 @@ let
         "--set BWRAP_EXE ${config.bubblewrap.package}/bin/bwrap"
         "--set NIXPAK_APP_EXE ${app}${executablePath}"
         "--set BUBBLEWRAP_ARGS ${bwrapArgsJson}"
+        (optionals
+          config.flatpak.session-helper.enable
+          "--set SESSION_HELPER_EXE ${pkgs.flatpak}/libexec/flatpak-session-helper"
+        )
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_EXE ${dbusProxyWrapper}")
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_ARGS ${dbusProxyArgsJson}")
       ])}
