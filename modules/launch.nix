@@ -76,8 +76,6 @@ let
       (concat "unix:path=" (coerceToEnv "$XDG_RUNTIME_DIR/nixpak-bus"))
     ])
 
-    [ "--ro-bind" config.flatpak.infoFile "/.flatpak-info" ]
-
     (optionals config.bubblewrap.bindEntireStore (bindRo "/nix/store"))
   ];
   dbusProxyArgs = [ (env "DBUS_SESSION_BUS_ADDRESS") dbusOutsidePath ] ++ config.dbus.args ++ [ "--filter" ];
@@ -107,8 +105,10 @@ let
     makeWrapper ${launcher}/bin/launcher $out${executablePath} \
       ${concatStringsSep " " (flatten [
         "--set BWRAP_EXE ${config.bubblewrap.package}/bin/bwrap"
-        "--set NIXPAK_APP_EXE ${app}${executablePath}"
         "--set BUBBLEWRAP_ARGS ${bwrapArgsJson}"
+        "--set NIXPAK_APP_NAME ${name}"
+        "--set NIXPAK_APP_EXE ${app}${executablePath}"
+        "--set NIXPAK_APP_INFO ${config.flatpak.infoFile}"
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_EXE ${dbusProxyWrapper}")
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_ARGS ${dbusProxyArgsJson}")
       ])}
@@ -163,7 +163,7 @@ let
       (bind "/var")
       (bind "/tmp")
       (bind "/run")
-      "--ro-bind-try ${config.flatpak.infoFile or "/.flatpak-info-not-found"} /.flatpak-info"
+      "--ro-bind-try \${NIXPAK_INSTANCE_PATH}/info /.flatpak-info"
     ])} ${pkgs.xdg-dbus-proxy}/bin/xdg-dbus-proxy "$@"
   '';
 

@@ -5,10 +5,12 @@ import (
 	"encoding/base32"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -66,10 +68,11 @@ type InstanceId struct {
 }
 
 func NewInstanceId(raw JsonRaw) (i InstanceId) {
+	nixpakName := envOr("NIXPAK_APP_NAME", "NIXPAK")
 	i.Type = "instanceId"
 	var sum = md5.Sum([]byte(strconv.Itoa(os.Getpid())))
 	var enc = base32.NewEncoding("0123456789abcdfghijklmnpqrsvwxyz").WithPadding(base32.NoPadding)
-	i.Id = enc.EncodeToString(sum[:])
+	i.Id = nixpakName + "-" + enc.EncodeToString(sum[:])
 	return
 }
 
@@ -139,6 +142,28 @@ func readJsonArgs(filename string) (args []string) {
 	return
 }
 
+func copyFile(src, dst string) error {
+	sf, err := os.Open(src)
+	if err != nil {
+		panic("File copy failed: opening source")
+	}
+	defer sf.Close()
+	df, err := os.Create(dst)
+	if err != nil {
+		panic("File copy failed: creating destination")
+	}
+	defer df.Close()
+	_, err = io.Copy(df, sf)
+	if err != nil {
+		panic("File copy failed: copying content")
+	}
+	err = df.Sync()
+	if err != nil {
+		panic("File copy failed: syncing/writing destination")
+	}
+	return nil
+}
+
 func main() {
 	bwrapExe := envOr("BWRAP_EXE", "bwrap")
 
@@ -172,6 +197,42 @@ func main() {
 	bwrapArgs = append(bwrapArgs, appExe)
 	bwrapArgs = append(bwrapArgs, os.Args[1:]...)
 
+	dirInstance := envOr("XDG_RUNTIME_DIR", "/run/user/1000")
+	dirInstance += "/.flatpak/"
+	dirInstance += NewInstanceId(nil).String()
+	err := os.MkdirAll(dirInstance, 0700)
+	if err != nil {
+		panic(err)
+	}
+	err = os.Setenv("NIXPAK_INSTANCE_PATH", dirInstance)
+	if err != nil {
+		panic("Could not set Instance PATH Variable")
+	}
+	fileInfoPath := dirInstance + "/bwrapinfo.json"
+	var bi *os.File
+	bi, err = os.OpenFile(fileInfoPath, os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer bi.Close()
+	infoFileNix, found := os.LookupEnv("NIXPAK_APP_INFO")
+	if !found {
+		panic("Nixpak Info file not set!")
+	}
+	infoFileRun := dirInstance + "/info"
+	copyFile(infoFileNix, infoFileRun)
+	infoData, err := ioutil.ReadFile(infoFileRun)
+	infoUpdatedData := strings.ReplaceAll(string(infoData), "MY_INSTANCE_ID", NewInstanceId(nil).String())
+	infoDataFile, err := os.OpenFile(infoFileRun, os.O_WRONLY|os.O_TRUNC, 0)
+	defer infoDataFile.Close()
+	_, err = infoDataFile.Write([]byte(infoUpdatedData))
+	if err != nil {
+		panic("Could not change instance-id")
+	}
+	bwrapArgs = append([]string{"--info-fd", strconv.Itoa(int(bi.Fd()))}, bwrapArgs...)
+	bwrapArgs = append([]string{"--ro-bind", dirInstance, dirInstance}, bwrapArgs...)
+	bwrapArgs = append([]string{"--ro-bind", infoFileRun, "/.flatpak-info"}, bwrapArgs...)
+
 	if useDbusProxy {
 		dbusproxyArgs := readJsonArgs(dbusproxyArgsJson)
 		dbus := exec.Command(dbusproxyExe, append([]string{"--fd=3"}, dbusproxyArgs...)...)
@@ -190,6 +251,8 @@ func main() {
 		}
 	}
 	// unset O_CLOEXEC
+
 	syscall.Syscall(syscall.SYS_FCNTL, r.Fd(), syscall.F_SETFD, 0)
+	syscall.Syscall(syscall.SYS_FCNTL, bi.Fd(), syscall.F_SETFD, 0)
 	syscall.Exec(bwrapExe, append([]string{bwrapExe}, bwrapArgs...), os.Environ())
 }

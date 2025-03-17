@@ -54,6 +54,7 @@ in
         name = config.flatpak.appId;
         runtime = config.flatpak.runtimeId;
       };
+      Instance.instance-id = "MY_INSTANCE_ID";
       Context.shared = "${concatStringsSep ";" config.flatpak.sharedNamespaces};";
       "Session Bus Policy" = config.dbus.policies;
     };
