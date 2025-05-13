@@ -82,10 +82,11 @@ in {
 
   config = {
     bubblewrap.bind.ro = let
+      mapNetFiles = config.bubblewrap.network && !config.pasta.enable;
       cfg = config.bubblewrap.sockets;
     in
-      (optional config.bubblewrap.network "/etc/resolv.conf")
-      ++ (optional config.bubblewrap.network "/etc/hosts")
+      (optional mapNetFiles "/etc/resolv.conf")
+      ++ (optional mapNetFiles "/etc/hosts")
       ++ (optional cfg.wayland (sloth.concat [sloth.runtimeDir "/" (sloth.envOr "WAYLAND_DISPLAY" "wayland-0")]))
       ++ (optional cfg.pipewire (sloth.concat' sloth.runtimeDir "/pipewire-0"))
       ++ (optionals cfg.x11 [
