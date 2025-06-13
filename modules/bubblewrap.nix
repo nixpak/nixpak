@@ -41,6 +41,12 @@ in {
       default = [];
     };
 
+    symlink = mkOption {
+      description = "Files that should be symlinked within the sandbox.";
+      type = with types; listOf (listOf sloth.type);
+      default = [];
+    };
+
     tmpfs = mkOption {
       description = "Tmpfs locations.";
       type = types.listOf sloth.type;
@@ -84,8 +90,11 @@ in {
     bubblewrap.bind.ro = let
       cfg = config.bubblewrap.sockets;
     in
-      (optional config.bubblewrap.network "/etc/resolv.conf")
-      ++ (optional config.bubblewrap.network "/etc/hosts")
+      (optional config.flatpak.session-helper.enable [ (sloth.concat' sloth.runtimeDir "/.flatpak-helper/monitor") "/run/host/monitor" ])
+      ++ (optionals (config.bubblewrap.network && !config.flatpak.session-helper.enable) [
+        "/etc/resolv.conf"
+        "/etc/hosts"
+      ])
       ++ (optional cfg.wayland (sloth.concat [sloth.runtimeDir "/" (sloth.envOr "WAYLAND_DISPLAY" "wayland-0")]))
       ++ (optional cfg.pipewire (sloth.concat' sloth.runtimeDir "/pipewire-0"))
       ++ (optionals cfg.x11 [
@@ -93,5 +102,16 @@ in {
         "/tmp/.X11-unix"
       ])
       ++ (optional cfg.pulse (sloth.concat' sloth.runtimeDir "/pulse"));
+
+    bubblewrap.symlink = optionals
+      config.flatpak.session-helper.enable
+      (map (n: ["/run/host/monitor/${n}" "/etc/${n}"]) [
+        "resolv.conf"
+        "host.conf"
+        "hosts"
+        "gai.conf"
+        "timezone"
+        "localtime"
+      ]);
   };
 }
