@@ -383,7 +383,10 @@ func (bwrap *Bwrap) WaitUntilChildExit() {
 		panic(err)
 	}
 	if _, err := bwrapChild.Wait(); err != nil {
-		panic(err)
+		syscallErr, ok := err.(*os.SyscallError)
+		if !ok || syscallErr.Unwrap() != unix.ECHILD {
+			panic(err)
+		}
 	}
 }
 
