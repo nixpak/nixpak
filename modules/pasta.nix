@@ -8,7 +8,17 @@ with lib;
     package = mkOption {
       description = "Pasta package to use.";
       type = types.package;
-      default = pkgs.passt;
+      default = pkgs.passt.overrideAttrs (old: {
+        patches = (old.patches or []) ++ [
+          # This patch let's pasta get the user namespace from the mount namespace.
+          # This is necessary, since bubblewrap sometimes (e.g. when the --dev option
+          # is used) uses two layers of user namespaces and pasta sometimes (since
+          # also a race-condition is involved; see
+          # https://github.com/containers/bubblewrap/issues/634) fails to detect the
+          # correct user namespace.
+          ./patches/passt-fix-user-namespace-detection.patch
+        ];
+      });
     };
     mode = mkOption {
       type = types.enum [ "transparent" "isolate" ];
