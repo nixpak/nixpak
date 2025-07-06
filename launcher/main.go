@@ -377,10 +377,13 @@ func (bwrap *Bwrap) WaitUntilParentExit() error {
 	return bwrap.Cmd.Wait()
 }
 
-func (bwrap *Bwrap) WaitUntilChildExit() {
+func (bwrap *Bwrap) KillAndWaitUntilChildExit(kill bool) {
 	bwrapChild, err := os.FindProcess(bwrap.Info.ChildPid)
 	if err != nil {
 		panic(err)
+	}
+	if kill {
+		bwrapChild.Kill()
 	}
 	if _, err := bwrapChild.Wait(); err != nil {
 		syscallErr, ok := err.(*os.SyscallError)
@@ -390,8 +393,16 @@ func (bwrap *Bwrap) WaitUntilChildExit() {
 	}
 }
 
+func (bwrap *Bwrap) WaitUntilChildExit() {
+	bwrap.KillAndWaitUntilChildExit(false)
+}
+
+func (bwrap *Bwrap) CloseChild() {
+	bwrap.KillAndWaitUntilChildExit(true)
+}
+
 func (bwrap *Bwrap) Close() {
-	syscall.Kill(bwrap.Cmd.Process.Pid, syscall.SIGKILL)
+	bwrap.Cmd.Process.Signal(syscall.SIGTERM)
 	bwrap.Cmd.Wait()
 	bwrap.BlockWrite.Close()
 	bwrap.InfoRead.Close()
@@ -487,6 +498,7 @@ func run() error {
 	bwrap := StartBwrap(conf)
 	defer bwrap.Close()
 	bwrapInfo := bwrap.WaitUntilSandboxReady()
+	defer bwrap.CloseChild()
 
 	if conf.UsePasta {
 		StartPasta(conf, bwrapInfo.ChildPid)
