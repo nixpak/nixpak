@@ -3,7 +3,8 @@
 > Nix? Flatpak? Why not both?
 
 NixPak is essentially a fancy declarative wrapper around
-[bwrap](https://github.com/containers/bubblewrap) and
+[bwrap](https://github.com/containers/bubblewrap),
+[pasta](https://passt.top/) and
 [xdg-dbus-proxy](https://github.com/flatpak/xdg-dbus-proxy).
 You can use it to sandbox all sorts of Nix-packaged applications,
 including graphical ones.
@@ -181,4 +182,20 @@ sloth.concat [
   sloth.instanceId
 ]
 # looks something like "/run/user/1000/my-app-jim1rivq0gblz0vn6k32wgv7aq"
+```
+
+#### `sloth.uid :: Sloth`
+
+UID of the user at runtime.
+
+```nix
+sloth.uid # results in "1000" at runtime
+```
+
+#### `sloth.gid :: Sloth`
+
+GID of the user at runtime.
+
+```nix
+sloth.gid # results in "100" at runtime
 ```

@@ -10,6 +10,7 @@ lib.evalModules {
     
     ./app.nix
     ./bubblewrap.nix
+    ./pasta.nix
     ./dbus.nix
     ./etc.nix
     ./gpu.nix

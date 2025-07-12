@@ -50,6 +50,8 @@ let
   launcher = pkgs.callPackage ../launcher {};
   dbusOutsidePath = concat (env "XDG_RUNTIME_DIR") (concat "/nixpak-bus-" instanceId);
   
+  pastaEnable = config.bubblewrap.network && config.pasta.enable;
+
   bwrapArgs = flatten [
     # This is the equivalent of --unshare-all, see bwrap(1) for details.
     "--unshare-user-try"
@@ -64,7 +66,7 @@ let
     envVars
     tmpfs
     
-    (optionals config.bubblewrap.network "--share-net")
+    (optionals (config.bubblewrap.network && !config.pasta.enable) "--share-net")
     (optionals config.bubblewrap.apivfs.dev ["--dev" "/dev"])
     (optionals config.bubblewrap.apivfs.proc ["--proc" "/proc"])
 
@@ -92,6 +94,8 @@ let
 
   dbusProxyArgsJson = pkgs.writeText "xdg-dbus-proxy-args.json" (builtins.toJSON dbusProxyArgs);
 
+  pastaArgsJson = pkgs.writeText "pasta-args.json" (builtins.toJSON config.pasta.args);
+
   mainProgram = builtins.baseNameOf config.app.binPath;
 
   mkWrapperScript = {
@@ -111,6 +115,8 @@ let
         "--set BUBBLEWRAP_ARGS ${bwrapArgsJson}"
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_EXE ${dbusProxyWrapper}")
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_ARGS ${dbusProxyArgsJson}")
+        (optionals pastaEnable "--set PASTA_EXE ${config.pasta.package}/bin/pasta")
+        (optionals pastaEnable "--set PASTA_ARGS ${pastaArgsJson}")
       ])}
   '');
 
