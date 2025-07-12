@@ -1,2 +1,4 @@
 result
 result-*
+.data/
+.direnv/

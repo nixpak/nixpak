@@ -22,6 +22,7 @@
     imports = [
       inputs.hercules-ci-effects.flakeModule
       ./jobs/update-flake-lock
+      ./dev
     ];
 
     systems = [
