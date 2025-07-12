@@ -5,7 +5,7 @@ import (
 	"encoding/base32"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -15,7 +15,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-type JsonRaw = map[string]interface{}
+type JsonRaw = map[string]any
 type Thunk func() string
 
 type EnvVar struct {
@@ -134,7 +134,7 @@ func envOr(name string, or string) string {
 	}
 }
 
-func valToString(item interface{}) (ret string) {
+func valToString(item any) (ret string) {
 	ret, ok := item.(string)
 	if ok {
 		return
@@ -162,8 +162,8 @@ func valToString(item interface{}) (ret string) {
 
 func readJsonArgs(filename string) (args []string) {
 	file, _ := os.Open(filename)
-	bytes, _ := ioutil.ReadAll(file)
-	var argsRaw []interface{}
+	bytes, _ := io.ReadAll(file)
+	var argsRaw []any
 
 	json.Unmarshal(bytes, &argsRaw)
 	for _, item := range argsRaw {
@@ -346,7 +346,7 @@ func StartBwrap(conf Config) (bwrap Bwrap) {
 }
 
 func (bwrap *Bwrap) WaitUntilSandboxReady() (bwrapInfo BwrapInfo) {
-	if bytes, err := ioutil.ReadAll(bwrap.InfoRead); err == nil {
+	if bytes, err := io.ReadAll(bwrap.InfoRead); err == nil {
 		if err := json.Unmarshal(bytes, &bwrapInfo); err != nil {
 			panic(err)
 		}
