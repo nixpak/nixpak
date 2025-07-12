@@ -32,5 +32,21 @@ let
   collectModules = isPreset: baseDir: collectAttrs (createModule' isPreset) baseDir;
 in
 {
+  imports = [
+    ./parts/builders.nix
+    ./parts/nixpak-builder.nix
+  ];
+
   flake.nixpakModules = (collectModules false ./modules) // (collectModules true ./presets);
+
+  perSystem = { builders, ... }: {
+    packages = collectAttrs (name: moduleSpec: let
+      package = builders.mkNixPakConfiguration {
+        config.imports = [ (createModule moduleSpec) ];
+      };
+    in {
+      inherit name;
+      value = package.config.env;
+    }) ./packages;
+  };
 }
