@@ -24,6 +24,7 @@
       ./jobs/update-flake-lock
       ./dev
       ./contrib
+      ./nixos
     ];
 
     systems = [
