@@ -73,6 +73,12 @@ in {
       dev = mkMountToggle "the /dev API VFS";
     };
 
+    clearEnv = mkOption {
+      description = "Unset all environment variables.";
+      type = types.bool;
+      default = false;
+    };
+
     env = mkOption {
       description = "Environment variables to set.";
       type = with types; attrsOf (nullOr sloth.type);
