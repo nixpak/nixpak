@@ -42,7 +42,7 @@ in
   perSystem = { builders, ... }: {
     packages = collectAttrs (name: moduleSpec: let
       package = builders.mkNixPakConfiguration {
-        config.imports = [ (createModule moduleSpec) ];
+        config.imports = [ (createModule moduleSpec) self.nixpakModules."preset-${name}" ];
       };
     in {
       inherit name;
