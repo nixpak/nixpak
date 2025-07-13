@@ -9,8 +9,10 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"regexp"
 	"strconv"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -176,6 +178,19 @@ func instanceId() string {
 	return enc.EncodeToString(sum[:])
 }
 
+func getOptionValue(args []string, option string) string {
+	re := regexp.MustCompile("^" + regexp.QuoteMeta(option) + "=(.*)$")
+
+	for _, arg := range args {
+		m := re.FindStringSubmatch(arg)
+		if len(m) == 2 {
+			return m[1]
+		}
+	}
+
+	panic("Option \"" + option + "\" not found")
+}
+
 type Config struct {
 	AppExe                  string
 	AppArgs                 []string
@@ -189,6 +204,10 @@ type Config struct {
 	PastaArgs               []string
 	UseFlatpakMetadata      bool
 	FlatpakMetadataTemplate string
+	UseWaylandProxy         bool
+	WaylandProxyExe         string
+	WaylandProxyArgs        []string
+	WaylandProxySocketPath  string
 }
 
 func readConfig() (conf Config) {
@@ -224,6 +243,18 @@ func readConfig() (conf Config) {
 	conf.UseFlatpakMetadata = useFlatpakMetadata
 	if useFlatpakMetadata {
 		conf.FlatpakMetadataTemplate = flatpakMetadataTemplate
+	}
+
+	waylandProxyArgsJson, useWaylandProxy := os.LookupEnv("WAYLAND_PROXY_ARGS")
+	conf.UseWaylandProxy = useWaylandProxy
+	if useWaylandProxy {
+		conf.WaylandProxyArgs = readJsonArgs(waylandProxyArgsJson)
+		conf.WaylandProxyExe = envOr("WAYLAND_PROXY_EXE", "wayland-proxy-virtwl")
+		conf.WaylandProxySocketPath = getOptionValue(conf.WaylandProxyArgs, "--wayland-display")
+
+		if _, err := os.Stat(conf.WaylandProxySocketPath); err == nil {
+			panic("Wayland proxy socket already exists")
+		}
 	}
 
 	return
@@ -284,6 +315,51 @@ func (dbus *Dbus) WaitUntilStartup() {
 func (dbus *Dbus) Close() {
 	dbus.SyncRead.Close()
 	dbus.Cmd.Wait()
+}
+
+type WaylandProxy struct {
+	Cmd        *exec.Cmd
+	SocketPath string
+}
+
+func StartWaylandProxy(conf Config) (waylandProxy WaylandProxy) {
+	failed := true
+
+	cmd := exec.Command(conf.WaylandProxyExe, conf.WaylandProxyArgs...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	waylandProxy.Cmd = cmd
+	waylandProxy.SocketPath = conf.WaylandProxySocketPath
+
+	if err := cmd.Start(); err != nil {
+		panic(err)
+	}
+	defer func() {
+		if failed {
+			waylandProxy.Close()
+		}
+	}()
+
+	failed = false
+	return
+}
+
+func (waylandProxy *WaylandProxy) WaitUntilStartup() {
+	for {
+		if _, err := os.Stat(waylandProxy.SocketPath); err == nil {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func (waylandProxy *WaylandProxy) Close() {
+	waylandProxy.Cmd.Process.Signal(syscall.SIGTERM)
+	waylandProxy.Cmd.Wait()
+
+	// Cleanup socket file if it still exists
+	os.Remove(waylandProxy.SocketPath)
 }
 
 type BwrapInfo struct {
@@ -566,6 +642,12 @@ func run() error {
 		dbus := StartDbusproxy(conf)
 		defer dbus.Close()
 		dbus.WaitUntilStartup()
+	}
+
+	if conf.UseWaylandProxy {
+		waylandProxy := StartWaylandProxy(conf)
+		defer waylandProxy.Close()
+		waylandProxy.WaitUntilStartup()
 	}
 
 	bwrap := StartBwrap(conf, flatpakMetadata)

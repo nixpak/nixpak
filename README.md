@@ -4,8 +4,9 @@
 
 NixPak is essentially a fancy declarative wrapper around
 [bwrap](https://github.com/containers/bubblewrap),
-[pasta](https://passt.top/) and
-[xdg-dbus-proxy](https://github.com/flatpak/xdg-dbus-proxy).
+[pasta](https://passt.top/),
+[xdg-dbus-proxy](https://github.com/flatpak/xdg-dbus-proxy) and
+[wayland-proxy-virtwl](https://github.com/talex5/wayland-proxy-virtwl).
 You can use it to sandbox all sorts of Nix-packaged applications,
 including graphical ones.
 

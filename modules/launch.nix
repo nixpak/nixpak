@@ -49,6 +49,7 @@ let
   info = pkgs.closureInfo { inherit rootPaths; };
   launcher = pkgs.callPackage ../launcher {};
   dbusOutsidePath = concat (env "XDG_RUNTIME_DIR") (concat "/nixpak-bus-" instanceId);
+  waylandOutsidePath = concat (env "XDG_RUNTIME_DIR") (concat "/nixpak-wayland-" instanceId);
   
   pastaEnable = config.bubblewrap.network && config.pasta.enable;
 
@@ -79,6 +80,11 @@ let
       (concat "unix:path=" (coerceToEnv "$XDG_RUNTIME_DIR/nixpak-bus"))
     ])
 
+    (optionals config.waylandProxy.enable [
+      (bind [ waylandOutsidePath "$XDG_RUNTIME_DIR/nixpak-wayland" ])
+      "--setenv" "WAYLAND_DISPLAY" "nixpak-wayland"
+    ])
+
     (optionals config.bubblewrap.bindEntireStore (bindRo "/nix/store"))
   ];
   dbusProxyArgs = [ (env "DBUS_SESSION_BUS_ADDRESS") dbusOutsidePath ] ++ config.dbus.args ++ [ "--filter" ];
@@ -94,6 +100,9 @@ let
   dbusProxyArgsJson = pkgs.writeText "xdg-dbus-proxy-args.json" (builtins.toJSON dbusProxyArgs);
 
   pastaArgsJson = pkgs.writeText "pasta-args.json" (builtins.toJSON config.pasta.args);
+
+  waylandProxyArgs = [ (concat "--wayland-display=" waylandOutsidePath) ] ++ config.waylandProxy.args;
+  waylandProxyArgsJson = pkgs.writeText "wayland-proxy-args.json" (builtins.toJSON waylandProxyArgs);
 
   mainProgram = builtins.baseNameOf config.app.binPath;
 
@@ -117,6 +126,8 @@ let
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_ARGS ${dbusProxyArgsJson}")
         (optionals pastaEnable "--set PASTA_EXE ${config.pasta.package}/bin/pasta")
         (optionals pastaEnable "--set PASTA_ARGS ${pastaArgsJson}")
+        (optionals config.waylandProxy.enable "--set WAYLAND_PROXY_EXE ${config.waylandProxy.package}/bin/wayland-proxy-virtwl")
+        (optionals config.waylandProxy.enable "--set WAYLAND_PROXY_ARGS ${waylandProxyArgsJson}")
       ])}
   '');
 
