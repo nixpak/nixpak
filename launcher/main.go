@@ -70,9 +70,7 @@ type InstanceId struct {
 
 func NewInstanceId(raw JsonRaw) (i InstanceId) {
 	i.Type = "instanceId"
-	var sum = md5.Sum([]byte(strconv.Itoa(os.Getpid())))
-	var enc = base32.NewEncoding("0123456789abcdfghijklmnpqrsvwxyz").WithPadding(base32.NoPadding)
-	i.Id = enc.EncodeToString(sum[:])
+	i.Id = instanceId()
 	return
 }
 
@@ -172,17 +170,25 @@ func readJsonArgs(filename string) (args []string) {
 	return
 }
 
+func instanceId() string {
+	var sum = md5.Sum([]byte(strconv.Itoa(os.Getpid())))
+	var enc = base32.NewEncoding("0123456789abcdfghijklmnpqrsvwxyz").WithPadding(base32.NoPadding)
+	return enc.EncodeToString(sum[:])
+}
+
 type Config struct {
-	AppExe        string
-	AppArgs       []string
-	BwrapExe      string
-	BwrapArgs     []string
-	UseDbusProxy  bool
-	DbusproxyExe  string
-	DbusproxyArgs []string
-	UsePasta      bool
-	PastaExe      string
-	PastaArgs     []string
+	AppExe                  string
+	AppArgs                 []string
+	BwrapExe                string
+	BwrapArgs               []string
+	UseDbusProxy            bool
+	DbusproxyExe            string
+	DbusproxyArgs           []string
+	UsePasta                bool
+	PastaExe                string
+	PastaArgs               []string
+	UseFlatpakMetadata      bool
+	FlatpakMetadataTemplate string
 }
 
 func readConfig() (conf Config) {
@@ -212,6 +218,12 @@ func readConfig() (conf Config) {
 	if usePasta {
 		conf.PastaArgs = readJsonArgs(pastaArgsJson)
 		conf.PastaExe = envOr("PASTA_EXE", "pasta")
+	}
+
+	flatpakMetadataTemplate, useFlatpakMetadata := os.LookupEnv("FLATPAK_METADATA_TEMPLATE")
+	conf.UseFlatpakMetadata = useFlatpakMetadata
+	if useFlatpakMetadata {
+		conf.FlatpakMetadataTemplate = flatpakMetadataTemplate
 	}
 
 	return
@@ -275,7 +287,8 @@ func (dbus *Dbus) Close() {
 }
 
 type BwrapInfo struct {
-	ChildPid int `json:"child-pid"`
+	ChildPid int    `json:"child-pid"`
+	Raw      []byte `json:"-"`
 }
 
 type Bwrap struct {
@@ -285,10 +298,13 @@ type Bwrap struct {
 	Info       BwrapInfo
 }
 
-func StartBwrap(conf Config) (bwrap Bwrap) {
+func StartBwrap(conf Config, flatpakMetadata FlatpakMetadata) (bwrap Bwrap) {
 	failed := true
 
 	bwrapArgs := append([]string{"--info-fd", "3", "--block-fd", "4"}, conf.BwrapArgs...)
+	if conf.UseFlatpakMetadata {
+		bwrapArgs = append(bwrapArgs, []string{"--ro-bind", flatpakMetadata.MetadataDirectory + "/info", "/.flatpak-info"}...)
+	}
 	bwrapArgs = append(bwrapArgs, "--")
 	bwrapArgs = append(bwrapArgs, conf.AppExe)
 	bwrapArgs = append(bwrapArgs, conf.AppArgs...)
@@ -353,6 +369,7 @@ func (bwrap *Bwrap) WaitUntilSandboxReady() (bwrapInfo BwrapInfo) {
 		if bwrapInfo.ChildPid <= 0 {
 			panic("Unexpected child PID")
 		}
+		bwrapInfo.Raw = bytes
 		bwrap.Info = bwrapInfo
 	} else {
 		panic(err)
@@ -482,12 +499,68 @@ func (reaper *ChildReaper) Close() {
 	signal.Stop(reaper.Signals)
 }
 
+type FlatpakMetadata struct {
+	InfoFileTemplate  string
+	MetadataDirectory string
+}
+
+func (f *FlatpakMetadata) Setup() {
+	err := os.MkdirAll(f.MetadataDirectory, 0700)
+	if err != nil {
+		panic(err)
+	}
+	src, err := os.Open(f.InfoFileTemplate)
+	if err != nil {
+		panic(err)
+	}
+	defer src.Close()
+	dst, err := os.Create(f.MetadataDirectory + "/info")
+	if err != nil {
+		panic(err)
+	}
+	defer dst.Close()
+	_, err = io.Copy(dst, src)
+	if err != nil {
+		panic(err)
+	}
+	_, err = dst.Write([]byte("\n\n[Instance]\ninstance-id=nixpak-app-" + instanceId() + "\n"))
+	if err != nil {
+		panic(err)
+	}
+	// horrible hack
+	os.Setenv("FLATPAK_METADATA_FILE", f.MetadataDirectory+"/info")
+}
+
+func (f *FlatpakMetadata) WriteBwrapInfo(infoJson []byte) {
+	file, err := os.Create(f.MetadataDirectory + "/bwrapinfo.json")
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+	_, err = file.Write(infoJson)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (f *FlatpakMetadata) Cleanup() {
+	os.RemoveAll(f.MetadataDirectory)
+}
+
 func run() error {
 	reaper := StartChildReaper()
 	defer reaper.Close()
 	defer reaper.WaitAndReapAllChildren()
 
+	var flatpakMetadata FlatpakMetadata
+
 	conf := readConfig()
+
+	if conf.UseFlatpakMetadata {
+		flatpakMetadata.InfoFileTemplate = conf.FlatpakMetadataTemplate
+		flatpakMetadata.MetadataDirectory = os.Getenv("XDG_RUNTIME_DIR") + "/.flatpak/nixpak-app-" + instanceId()
+		flatpakMetadata.Setup()
+	}
 
 	if conf.UseDbusProxy {
 		dbus := StartDbusproxy(conf)
@@ -495,10 +568,15 @@ func run() error {
 		dbus.WaitUntilStartup()
 	}
 
-	bwrap := StartBwrap(conf)
+	bwrap := StartBwrap(conf, flatpakMetadata)
 	defer bwrap.Close()
 	bwrapInfo := bwrap.WaitUntilSandboxReady()
 	defer bwrap.CloseChild()
+
+	if conf.UseFlatpakMetadata {
+		flatpakMetadata.WriteBwrapInfo(bwrapInfo.Raw)
+		defer flatpakMetadata.Cleanup()
+	}
 
 	if conf.UsePasta {
 		StartPasta(conf, bwrapInfo.ChildPid)
