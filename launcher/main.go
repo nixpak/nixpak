@@ -272,7 +272,7 @@ func readConfig() (conf Config) {
 	if useWaylandProxy {
 		conf.WaylandProxyArgs = readJsonArgs(waylandProxyArgsJson)
 		conf.WaylandProxyExe = envOr("WAYLAND_PROXY_EXE", "wayland-proxy-virtwl")
-		conf.WaylandProxySocketPath = requiredEnv("XDG_RUNTIME_DIR") + "/nixpak-wayland-" + instanceId()
+		conf.WaylandProxySocketPath = filepath.Join(requiredEnv("XDG_RUNTIME_DIR"), "nixpak-wayland-"+instanceId())
 
 		if _, err := os.Stat(conf.WaylandProxySocketPath); err == nil {
 			panic("Wayland proxy socket already exists")
@@ -401,7 +401,7 @@ func StartBwrap(conf Config, flatpakMetadata FlatpakMetadata) (bwrap Bwrap) {
 		bwrapArgs = append(bwrapArgs, []string{"--ro-bind", flatpakMetadata.MetadataDirectory + "/info", "/.flatpak-info"}...)
 	}
 	if conf.UseWaylandProxy {
-		waylandProxySocketPathInner := requiredEnv("XDG_RUNTIME_DIR") + "/nixpak-wayland"
+		waylandProxySocketPathInner := filepath.Join(requiredEnv("XDG_RUNTIME_DIR"), "nixpak-wayland")
 		bwrapArgs = append(bwrapArgs, "--bind", conf.WaylandProxySocketPath, waylandProxySocketPathInner)
 		bwrapArgs = append(bwrapArgs, "--setenv", "WAYLAND_DISPLAY", "nixpak-wayland")
 	}
