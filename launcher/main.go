@@ -9,10 +9,11 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"syscall"
-	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"golang.org/x/sys/unix"
 )
 
@@ -185,6 +186,33 @@ func instanceId() string {
 	return enc.EncodeToString(sum[:])
 }
 
+func waitUntilFileAppears(filename string) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		panic(err)
+	}
+	defer watcher.Close()
+
+	if err := watcher.Add(filepath.Dir(filename)); err != nil {
+		panic(err)
+	}
+
+	if _, err := os.Stat(filename); err == nil {
+		return
+	}
+
+	for {
+		select {
+		case event := <-watcher.Events:
+			if event.Name == filename && event.Op == fsnotify.Create {
+				return
+			}
+		case err := <-watcher.Errors:
+			panic(err)
+		}
+	}
+}
+
 type Config struct {
 	AppExe                  string
 	AppArgs                 []string
@@ -342,12 +370,7 @@ func StartWaylandProxy(conf Config) (waylandProxy WaylandProxy) {
 }
 
 func (waylandProxy *WaylandProxy) WaitUntilStartup() {
-	for {
-		if _, err := os.Stat(waylandProxy.SocketPath); err == nil {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitUntilFileAppears(waylandProxy.SocketPath)
 }
 
 func (waylandProxy *WaylandProxy) Close() {
