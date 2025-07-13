@@ -4,7 +4,7 @@ with lib;
 
 {
   options.waylandProxy = {
-    enable = mkEnableOption "Proxied Wayland access" // { default = false; };
+    enable = mkEnableOption "Proxied Wayland access";
     package = mkOption {
       description = "Wayland-proxy-virtwl package to use.";
       type = types.package;
