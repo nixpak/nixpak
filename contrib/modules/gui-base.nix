@@ -4,6 +4,7 @@
     config = {
       dbus.policies = {
         "${config.flatpak.appId}" = "own";
+        "${config.flatpak.appId}.*" = "own";
         "org.freedesktop.DBus" = "talk";
         "org.gtk.vfs.*" = "talk";
         "org.gtk.vfs" = "talk";
