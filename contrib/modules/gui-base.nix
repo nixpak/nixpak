@@ -29,6 +29,8 @@
           ]
           (sloth.concat' sloth.xdgCacheHome "/fontconfig")
           (sloth.concat' sloth.xdgCacheHome "/mesa_shader_cache")
+          (sloth.concat' sloth.xdgCacheHome "/mesa_shader_cache_db")
+          (sloth.concat' sloth.xdgCacheHome "/radv_builtin_shaders")
 
           (sloth.concat' sloth.runtimeDir "/at-spi/bus")
           (sloth.concat' sloth.runtimeDir "/gvfsd")
