@@ -174,6 +174,7 @@ let
 
   passthru = {
     extendModules = config._module.args.extendModules;
+    config = config;
   };
 in {
   options = {
