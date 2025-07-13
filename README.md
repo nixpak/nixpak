@@ -3,12 +3,14 @@
 > Nix? Flatpak? Why not both?
 
 NixPak is essentially a fancy declarative wrapper around
-[bwrap](https://github.com/containers/bubblewrap),
-[pasta](https://passt.top/),
-[xdg-dbus-proxy](https://github.com/flatpak/xdg-dbus-proxy) and
-[wayland-proxy-virtwl](https://github.com/talex5/wayland-proxy-virtwl).
+[bwrap](https://github.com/containers/bubblewrap).
 You can use it to sandbox all sorts of Nix-packaged applications,
 including graphical ones.
+
+It also optionally integrates with the following tools:
+- [pasta](https://passt.top/) for highly customizable network isolation
+- [xdg-dbus-proxy](https://github.com/flatpak/xdg-dbus-proxy) for D-Bus service access control
+- [wayland-proxy-virtwl](https://github.com/talex5/wayland-proxy-virtwl) for Wayland protocol access control
 
 ## Features
 
@@ -34,7 +36,7 @@ Also see the [examples directory](./examples)
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
-    
+
   outputs = { self, nixpkgs, nixpak }: {
     packages.x86_64-linux = let
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
