@@ -9,9 +9,11 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"syscall"
 
+	"github.com/fsnotify/fsnotify"
 	"golang.org/x/sys/unix"
 )
 
@@ -132,6 +134,14 @@ func envOr(name string, or string) string {
 	}
 }
 
+func requiredEnv(name string) string {
+	val, found := os.LookupEnv(name)
+	if !found || val == "" {
+		panic(fmt.Sprintf("environment variable '%s' not set", name))
+	}
+	return val
+}
+
 func valToString(item any) (ret string) {
 	ret, ok := item.(string)
 	if ok {
@@ -176,6 +186,33 @@ func instanceId() string {
 	return enc.EncodeToString(sum[:])
 }
 
+func waitUntilFileAppears(filename string) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		panic(err)
+	}
+	defer watcher.Close()
+
+	if err := watcher.Add(filepath.Dir(filename)); err != nil {
+		panic(err)
+	}
+
+	if _, err := os.Stat(filename); err == nil {
+		return
+	}
+
+	for {
+		select {
+		case event := <-watcher.Events:
+			if event.Name == filename && event.Op == fsnotify.Create {
+				return
+			}
+		case err := <-watcher.Errors:
+			panic(err)
+		}
+	}
+}
+
 type Config struct {
 	AppExe                  string
 	AppArgs                 []string
@@ -189,6 +226,10 @@ type Config struct {
 	PastaArgs               []string
 	UseFlatpakMetadata      bool
 	FlatpakMetadataTemplate string
+	UseWaylandProxy         bool
+	WaylandProxyExe         string
+	WaylandProxyArgs        []string
+	WaylandProxySocketPath  string
 }
 
 func readConfig() (conf Config) {
@@ -224,6 +265,18 @@ func readConfig() (conf Config) {
 	conf.UseFlatpakMetadata = useFlatpakMetadata
 	if useFlatpakMetadata {
 		conf.FlatpakMetadataTemplate = flatpakMetadataTemplate
+	}
+
+	waylandProxyArgsJson, useWaylandProxy := os.LookupEnv("WAYLAND_PROXY_ARGS")
+	conf.UseWaylandProxy = useWaylandProxy
+	if useWaylandProxy {
+		conf.WaylandProxyArgs = readJsonArgs(waylandProxyArgsJson)
+		conf.WaylandProxyExe = envOr("WAYLAND_PROXY_EXE", "wayland-proxy-virtwl")
+		conf.WaylandProxySocketPath = filepath.Join(requiredEnv("XDG_RUNTIME_DIR"), "nixpak-wayland-"+instanceId())
+
+		if _, err := os.Stat(conf.WaylandProxySocketPath); err == nil {
+			panic("Wayland proxy socket already exists")
+		}
 	}
 
 	return
@@ -286,6 +339,48 @@ func (dbus *Dbus) Close() {
 	dbus.Cmd.Wait()
 }
 
+type WaylandProxy struct {
+	Cmd        *exec.Cmd
+	SocketPath string
+}
+
+func StartWaylandProxy(conf Config) (waylandProxy WaylandProxy) {
+	failed := true
+
+	waylandProxy.SocketPath = conf.WaylandProxySocketPath
+	waylandProxyArgs := append([]string{"--wayland-display=" + waylandProxy.SocketPath}, conf.WaylandProxyArgs...)
+
+	cmd := exec.Command(conf.WaylandProxyExe, waylandProxyArgs...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	waylandProxy.Cmd = cmd
+
+	if err := cmd.Start(); err != nil {
+		panic(err)
+	}
+	defer func() {
+		if failed {
+			waylandProxy.Close()
+		}
+	}()
+
+	failed = false
+	return
+}
+
+func (waylandProxy *WaylandProxy) WaitUntilStartup() {
+	waitUntilFileAppears(waylandProxy.SocketPath)
+}
+
+func (waylandProxy *WaylandProxy) Close() {
+	waylandProxy.Cmd.Process.Signal(syscall.SIGTERM)
+	waylandProxy.Cmd.Wait()
+
+	// Cleanup socket file if it still exists
+	os.Remove(waylandProxy.SocketPath)
+}
+
 type BwrapInfo struct {
 	ChildPid int    `json:"child-pid"`
 	Raw      []byte `json:"-"`
@@ -304,6 +399,11 @@ func StartBwrap(conf Config, flatpakMetadata FlatpakMetadata) (bwrap Bwrap) {
 	bwrapArgs := append([]string{"--info-fd", "3", "--block-fd", "4"}, conf.BwrapArgs...)
 	if conf.UseFlatpakMetadata {
 		bwrapArgs = append(bwrapArgs, []string{"--ro-bind", flatpakMetadata.MetadataDirectory + "/info", "/.flatpak-info"}...)
+	}
+	if conf.UseWaylandProxy {
+		waylandProxySocketPathInner := filepath.Join(requiredEnv("XDG_RUNTIME_DIR"), "nixpak-wayland")
+		bwrapArgs = append(bwrapArgs, "--bind", conf.WaylandProxySocketPath, waylandProxySocketPathInner)
+		bwrapArgs = append(bwrapArgs, "--setenv", "WAYLAND_DISPLAY", "nixpak-wayland")
 	}
 	bwrapArgs = append(bwrapArgs, "--")
 	bwrapArgs = append(bwrapArgs, conf.AppExe)
@@ -566,6 +666,12 @@ func run() error {
 		dbus := StartDbusproxy(conf)
 		defer dbus.Close()
 		dbus.WaitUntilStartup()
+	}
+
+	if conf.UseWaylandProxy {
+		waylandProxy := StartWaylandProxy(conf)
+		defer waylandProxy.Close()
+		waylandProxy.WaitUntilStartup()
 	}
 
 	bwrap := StartBwrap(conf, flatpakMetadata)

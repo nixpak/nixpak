@@ -12,6 +12,7 @@ lib.evalModules {
     ./bubblewrap.nix
     ./pasta.nix
     ./dbus.nix
+    ./wayland-proxy.nix
     ./etc.nix
     ./gpu.nix
     ./launch.nix

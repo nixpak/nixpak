@@ -95,6 +95,8 @@ let
 
   pastaArgsJson = pkgs.writeText "pasta-args.json" (builtins.toJSON config.pasta.args);
 
+  waylandProxyArgsJson = pkgs.writeText "wayland-proxy-args.json" (builtins.toJSON config.waylandProxy.args);
+
   mainProgram = builtins.baseNameOf config.app.binPath;
 
   mkWrapperScript = {
@@ -117,6 +119,8 @@ let
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_ARGS ${dbusProxyArgsJson}")
         (optionals pastaEnable "--set PASTA_EXE ${config.pasta.package}/bin/pasta")
         (optionals pastaEnable "--set PASTA_ARGS ${pastaArgsJson}")
+        (optionals config.waylandProxy.enable "--set WAYLAND_PROXY_EXE ${config.waylandProxy.package}/bin/wayland-proxy-virtwl")
+        (optionals config.waylandProxy.enable "--set WAYLAND_PROXY_ARGS ${waylandProxyArgsJson}")
       ])}
   '');
 
