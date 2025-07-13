@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"regexp"
 	"strconv"
 	"syscall"
 	"time"
@@ -134,6 +133,14 @@ func envOr(name string, or string) string {
 	}
 }
 
+func requiredEnv(name string) string {
+	val, found := os.LookupEnv(name)
+	if !found || val == "" {
+		panic(fmt.Sprintf("environment variable '%s' not set", name))
+	}
+	return val
+}
+
 func valToString(item any) (ret string) {
 	ret, ok := item.(string)
 	if ok {
@@ -176,19 +183,6 @@ func instanceId() string {
 	var sum = md5.Sum([]byte(strconv.Itoa(os.Getpid())))
 	var enc = base32.NewEncoding("0123456789abcdfghijklmnpqrsvwxyz").WithPadding(base32.NoPadding)
 	return enc.EncodeToString(sum[:])
-}
-
-func getOptionValue(args []string, option string) string {
-	re := regexp.MustCompile("^" + regexp.QuoteMeta(option) + "=(.*)$")
-
-	for _, arg := range args {
-		m := re.FindStringSubmatch(arg)
-		if len(m) == 2 {
-			return m[1]
-		}
-	}
-
-	panic("Option \"" + option + "\" not found")
 }
 
 type Config struct {
@@ -250,7 +244,7 @@ func readConfig() (conf Config) {
 	if useWaylandProxy {
 		conf.WaylandProxyArgs = readJsonArgs(waylandProxyArgsJson)
 		conf.WaylandProxyExe = envOr("WAYLAND_PROXY_EXE", "wayland-proxy-virtwl")
-		conf.WaylandProxySocketPath = getOptionValue(conf.WaylandProxyArgs, "--wayland-display")
+		conf.WaylandProxySocketPath = requiredEnv("XDG_RUNTIME_DIR") + "/nixpak-wayland-" + instanceId()
 
 		if _, err := os.Stat(conf.WaylandProxySocketPath); err == nil {
 			panic("Wayland proxy socket already exists")
@@ -325,12 +319,14 @@ type WaylandProxy struct {
 func StartWaylandProxy(conf Config) (waylandProxy WaylandProxy) {
 	failed := true
 
-	cmd := exec.Command(conf.WaylandProxyExe, conf.WaylandProxyArgs...)
+	waylandProxy.SocketPath = conf.WaylandProxySocketPath
+	waylandProxyArgs := append([]string{"--wayland-display=" + waylandProxy.SocketPath}, conf.WaylandProxyArgs...)
+
+	cmd := exec.Command(conf.WaylandProxyExe, waylandProxyArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	waylandProxy.Cmd = cmd
-	waylandProxy.SocketPath = conf.WaylandProxySocketPath
 
 	if err := cmd.Start(); err != nil {
 		panic(err)
@@ -380,6 +376,11 @@ func StartBwrap(conf Config, flatpakMetadata FlatpakMetadata) (bwrap Bwrap) {
 	bwrapArgs := append([]string{"--info-fd", "3", "--block-fd", "4"}, conf.BwrapArgs...)
 	if conf.UseFlatpakMetadata {
 		bwrapArgs = append(bwrapArgs, []string{"--ro-bind", flatpakMetadata.MetadataDirectory + "/info", "/.flatpak-info"}...)
+	}
+	if conf.UseWaylandProxy {
+		waylandProxySocketPathInner := requiredEnv("XDG_RUNTIME_DIR") + "/nixpak-wayland"
+		bwrapArgs = append(bwrapArgs, "--bind", conf.WaylandProxySocketPath, waylandProxySocketPathInner)
+		bwrapArgs = append(bwrapArgs, "--setenv", "WAYLAND_DISPLAY", "nixpak-wayland")
 	}
 	bwrapArgs = append(bwrapArgs, "--")
 	bwrapArgs = append(bwrapArgs, conf.AppExe)
