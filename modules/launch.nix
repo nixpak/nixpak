@@ -63,6 +63,7 @@ let
 
     bindPaths
     bindRoPaths
+    (optionals (config.bubblewrap.clearEnv) "--clearenv")
     envVars
     tmpfs
     
