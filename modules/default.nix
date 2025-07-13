@@ -13,6 +13,7 @@ lib.evalModules {
     ./pasta.nix
     ./dbus.nix
     ./wayland-proxy.nix
+    ./pipewire.nix
     ./etc.nix
     ./gpu.nix
     ./launch.nix

@@ -44,8 +44,21 @@ let
   envVars = mapAttrsToList setEnv config.bubblewrap.env;
   tmpfs = map mountTmpfs config.bubblewrap.tmpfs;
 
+  pipewirePulseEnable = config.pipewire.enable && config.pipewire.pulseaudio;
+  pipewirePulseWrapper = pkgs.writeShellScript "pipewire-pulse-wrapper" ''
+    set -e
+    trap "exit" SIGINT SIGTERM
+    trap "kill 0" EXIT
+    ${config.pipewire.package}/bin/pipewire-pulse &
+    "$@"
+  '';
+
   app = config.app.package;
-  rootPaths = [ app ] ++ config.bubblewrap.extraStorePaths;
+  rootPaths = [ app ] ++ config.bubblewrap.extraStorePaths ++
+    (optionals pipewirePulseEnable [
+      config.pipewire.package
+      pipewirePulseWrapper
+    ]);
   info = pkgs.closureInfo { inherit rootPaths; };
   launcher = pkgs.callPackage ../launcher {};
   dbusOutsidePath = concat (env "XDG_RUNTIME_DIR") (concat "/nixpak-bus-" instanceId);
@@ -97,6 +110,10 @@ let
 
   waylandProxyArgsJson = pkgs.writeText "wayland-proxy-args.json" (builtins.toJSON config.waylandProxy.args);
 
+  pipewireContainerExe = "${pkgs.coreutils}/bin/stdbuf";
+  pipewireContainerArgs = [ "-oL" "--" "${config.pipewire.package}/bin/pw-container" ] ++ config.pipewire.args;
+  pipewireContainerArgsJson = pkgs.writeText "pipewire-container-args.json" (builtins.toJSON pipewireContainerArgs);
+
   mainProgram = builtins.baseNameOf config.app.binPath;
 
   mkWrapperScript = {
@@ -121,6 +138,9 @@ let
         (optionals pastaEnable "--set PASTA_ARGS ${pastaArgsJson}")
         (optionals config.waylandProxy.enable "--set WAYLAND_PROXY_EXE ${config.waylandProxy.package}/bin/wayland-proxy-virtwl")
         (optionals config.waylandProxy.enable "--set WAYLAND_PROXY_ARGS ${waylandProxyArgsJson}")
+        (optionals config.pipewire.enable "--set PIPEWIRE_CONTAINER_EXE ${pipewireContainerExe}")
+        (optionals config.pipewire.enable "--set PIPEWIRE_CONTAINER_ARGS ${pipewireContainerArgsJson}")
+        (optionals pipewirePulseEnable "--set PIPEWIRE_PULSE_EXE ${pipewirePulseWrapper}")
       ])}
   '');
 
