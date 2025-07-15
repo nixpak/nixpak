@@ -132,7 +132,7 @@ let
   envOverrides = pkgs.runCommand "nixpak-overrides-${app.name}" {} (''
     mkdir $out
     cd ${app}
-    grep -Rl ${app}/${config.app.binPath} | xargs -r -I {} cp -r --parents --no-preserve=mode {} $out || true
+    grep -Rl ${app}/${config.app.binPath} | xargs -r cp -r --parents --no-preserve=mode -t $out || true
     find $out -type f | while read line; do
       substituteInPlace $line --replace ${app}/${config.app.binPath} ${config.script}/${config.app.binPath}
     done
@@ -156,7 +156,7 @@ let
   '' + concatStringsSep "\n" (map (entrypoint: let
     entrypointScript = extraEntrypointScripts.${entrypoint};
   in ''
-    grep -Rl ${app}${entrypoint} | xargs -r -I {} cp -r --parents --no-preserve=mode {} $out || true
+    grep -Rl ${app}${entrypoint} | xargs -r cp -r --parents --no-preserve=mode -t $out || true
     find $out -type f | while read line; do
       substituteInPlace $line --replace ${app}${entrypoint} ${entrypointScript}${entrypoint}
     done
