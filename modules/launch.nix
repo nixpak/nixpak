@@ -132,33 +132,46 @@ let
   envOverrides = pkgs.runCommand "nixpak-overrides-${app.name}" {} (''
     mkdir $out
     cd ${app}
-    grep -Rl ${app}/${config.app.binPath} | xargs -r -I {} cp -r --parents --no-preserve=mode {} $out || true
-    find $out -type f | while read line; do
-      substituteInPlace $line --replace ${app}/${config.app.binPath} ${config.script}/${config.app.binPath}
-    done
     find . -type l | while read line; do
       linkTarget="$(readlink $line)"
       if [[ "$linkTarget" == *${app}* ]]; then
+        newTarget="$(echo $linkTarget | sed 's,${app},${config.script},g')"
+        echo Rewriting symlink "$line": "$linkTarget" '->' "$newTarget"
         mkdir -p $(dirname $out/$line)
-        ln -sf "$(echo $linkTarget | sed 's,${app},${config.script},g')" $out/$line
+        ln -sf "$newTarget" $out/$line
       fi
     done
 
     for desktopFileRel in share/applications/*.desktop; do
       if [[ -e $desktopFileRel ]] && grep -qm1 '[Desktop Entry]' $desktopFileRel; then
+        echo Flatpakizing desktop file: "$desktopFileRel"
         cp --parents --no-preserve=mode $desktopFileRel $out
         sed -i 's/\[Desktop Entry\]$/[Desktop Entry]\nX-Flatpak=${config.flatpak.appId}/g' $out/$desktopFileRel
       fi
     done
+
+    grep -Rl --binary-files=without-match ${app}/${config.app.binPath} | xargs -r cp -r --parents --no-preserve=mode --update=none -t $out || true
+    (grep -Rl --binary-files=without-match ${app}/${config.app.binPath} $out || true) | while read line; do
+      if ! test -L "$line"; then
+        echo Rewriting executable paths in "$line"
+        substituteInPlace "$line" --replace-fail ${app}/${config.app.binPath} ${config.script}/${config.app.binPath}
+      fi
+    done
   '' + lib.optionalString (config.flatpak.desktopFile != "${config.flatpak.appId}.desktop") ''
-    mv $out/share/applications/${config.flatpak.desktopFile} $out/share/applications/${config.flatpak.appId}.desktop
-    ln -s /dev/null $out/share/applications/${config.flatpak.desktopFile}
+    originalDesktopFile="$out/share/applications/${config.flatpak.desktopFile}"
+    newDesktopFile="$out/share/applications/${config.flatpak.appId}.desktop"
+    echo Renaming desktop file "$originalDesktopFile" to "$newDesktopFile"
+    mv "$originalDesktopFile" "$newDesktopFile"
+    ln -s /dev/null "$originalDesktopFile"
   '' + concatStringsSep "\n" (map (entrypoint: let
     entrypointScript = extraEntrypointScripts.${entrypoint};
   in ''
-    grep -Rl ${app}${entrypoint} | xargs -r -I {} cp -r --parents --no-preserve=mode {} $out || true
-    find $out -type f | while read line; do
-      substituteInPlace $line --replace ${app}${entrypoint} ${entrypointScript}${entrypoint}
+    grep -Rl --binary-files=without-match ${app}${entrypoint} | xargs -r cp -r --parents --no-preserve=mode --update=none -t $out || true
+    (grep -Rl --binary-files=without-match ${app}${entrypoint} $out || true) | while read line; do
+      if ! test -L "$line"; then
+        echo Rewriting executable paths in "$line"
+        substituteInPlace "$line" --replace-fail ${app}${entrypoint} ${entrypointScript}${entrypoint}
+      fi
     done
     rm -f $out${entrypoint}
   '') config.app.extraEntrypoints));
