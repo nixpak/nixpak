@@ -7,6 +7,11 @@ mkNixPak {
       "org.gtk.vfs.*" = "talk";
       "org.gtk.vfs" = "talk";
     };
+    timeZone = {
+      enable = true;
+      provider = "bundle";
+      zone = "Asia/Tokyo";
+    };
     bubblewrap = {
       bind.rw = [ sloth.homeDir ];
       bind.ro = [ (sloth.concat' sloth.homeDir "Documents") ];
