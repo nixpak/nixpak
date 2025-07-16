@@ -35,9 +35,9 @@
           (sloth.concat' sloth.runtimeDir "/at-spi/bus")
           (sloth.concat' sloth.runtimeDir "/gvfsd")
           (sloth.concat' sloth.runtimeDir "/dconf")
+          (sloth.concat' sloth.runtimeDir "/doc")
         ];
         bind.ro = [
-          (sloth.concat' sloth.runtimeDir "/doc")
           (sloth.concat' sloth.xdgConfigHome "/gtk-2.0")
           (sloth.concat' sloth.xdgConfigHome "/gtk-3.0")
           (sloth.concat' sloth.xdgConfigHome "/gtk-4.0")
