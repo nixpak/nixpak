@@ -7,7 +7,7 @@ lib.evalModules {
     config
 
     { _module.args = { inherit pkgs; }; }
-    
+
     ./app.nix
     ./bubblewrap.nix
     ./pasta.nix
@@ -17,6 +17,7 @@ lib.evalModules {
     ./gpu.nix
     ./launch.nix
     ./locale.nix
+    ./timezone.nix
 
     ./flatpak-shim/flatpak-desktop-file.nix
     ./flatpak-shim/flatpak-info.nix
