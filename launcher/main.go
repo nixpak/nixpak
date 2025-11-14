@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"syscall"
 
@@ -381,6 +382,37 @@ func (waylandProxy *WaylandProxy) Close() {
 	os.Remove(waylandProxy.SocketPath)
 }
 
+func SortBindPaths(args []string) (newArgs []string) {
+	var bindPathPairs [][3]string
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--bind-try" || args[i] == "--ro-bind-try" {
+			bindPathPairs = append(bindPathPairs, [3]string{args[i], args[i+1], args[i+2]})
+			i += 2;
+		}
+	}
+	sort.Slice(bindPathPairs, func(i, j int) bool {
+		a, b := bindPathPairs[i][2], bindPathPairs[j][2]
+		return a < b
+	})
+	firstBind := true
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--bind-try" || args[i] == "--ro-bind-try" {
+			if firstBind {
+				firstBind = false
+				for j := 0; j < len(bindPathPairs); j++ {
+					newArgs = append(newArgs, bindPathPairs[j][0])
+					newArgs = append(newArgs, bindPathPairs[j][1])
+					newArgs = append(newArgs, bindPathPairs[j][2])
+				}
+			}
+			i += 2;
+		} else {
+			newArgs = append(newArgs, args[i])
+		}
+	}
+	return
+}
+
 type BwrapInfo struct {
 	ChildPid int    `json:"child-pid"`
 	Raw      []byte `json:"-"`
@@ -396,7 +428,8 @@ type Bwrap struct {
 func StartBwrap(conf Config, flatpakMetadata FlatpakMetadata) (bwrap Bwrap) {
 	failed := true
 
-	bwrapArgs := append([]string{"--info-fd", "3", "--block-fd", "4"}, conf.BwrapArgs...)
+	bwrapArgs := SortBindPaths(conf.BwrapArgs)
+	bwrapArgs = append([]string{"--info-fd", "3", "--block-fd", "4"}, bwrapArgs...)
 	if conf.UseFlatpakMetadata {
 		bwrapArgs = append(bwrapArgs, []string{"--ro-bind", flatpakMetadata.MetadataDirectory + "/info", "/.flatpak-info"}...)
 	}
