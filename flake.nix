@@ -22,11 +22,12 @@
     imports = [
       inputs.hercules-ci-effects.flakeModule
       ./jobs/update-flake-lock
+      ./dev
+      ./contrib
     ];
 
     systems = [
       "x86_64-linux"
-      "i686-linux"
       "aarch64-linux"
     ];
 
@@ -53,6 +54,11 @@
           inherit mkNixPak;
           inherit (pkgs) vim;
         }).config.env;
+
+        pasta = (import ./examples/pasta.nix {
+          inherit mkNixPak;
+          inherit (pkgs) busybox iproute2 curl;
+        }).config.script;
       };
     };
   };

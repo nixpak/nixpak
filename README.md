@@ -3,10 +3,14 @@
 > Nix? Flatpak? Why not both?
 
 NixPak is essentially a fancy declarative wrapper around
-[bwrap](https://github.com/containers/bubblewrap) and
-[xdg-dbus-proxy](https://github.com/flatpak/xdg-dbus-proxy).
+[bwrap](https://github.com/containers/bubblewrap).
 You can use it to sandbox all sorts of Nix-packaged applications,
 including graphical ones.
+
+It also optionally integrates with the following tools:
+- [pasta](https://passt.top/) for highly customizable network isolation
+- [xdg-dbus-proxy](https://github.com/flatpak/xdg-dbus-proxy) for D-Bus service access control
+- [wayland-proxy-virtwl](https://github.com/talex5/wayland-proxy-virtwl) for Wayland protocol access control
 
 ## Features
 
@@ -32,7 +36,7 @@ Also see the [examples directory](./examples)
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
-    
+
   outputs = { self, nixpkgs, nixpak }: {
     packages.x86_64-linux = let
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
@@ -181,4 +185,20 @@ sloth.concat [
   sloth.instanceId
 ]
 # looks something like "/run/user/1000/my-app-jim1rivq0gblz0vn6k32wgv7aq"
+```
+
+#### `sloth.uid :: Sloth`
+
+UID of the user at runtime.
+
+```nix
+sloth.uid # results in "1000" at runtime
+```
+
+#### `sloth.gid :: Sloth`
+
+GID of the user at runtime.
+
+```nix
+sloth.gid # results in "100" at runtime
 ```

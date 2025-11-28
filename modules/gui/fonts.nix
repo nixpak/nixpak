@@ -47,7 +47,7 @@ with lib;
         fontConfigFile
         pkgs.fontconfig.out
       ];
-      pathsToLink = "/etc/fonts";
+      pathsToLink = [ "/etc/fonts" ];
     };
   in mkIf cfg.enable {
     bubblewrap.extraStorePaths = [ fc ];

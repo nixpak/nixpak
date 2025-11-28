@@ -50,6 +50,8 @@ let
   launcher = pkgs.callPackage ../launcher {};
   dbusOutsidePath = concat (env "XDG_RUNTIME_DIR") (concat "/nixpak-bus-" instanceId);
 
+  pastaEnable = config.bubblewrap.network && config.pasta.enable;
+
   bwrapArgs = flatten [
     # This is the equivalent of --unshare-all, see bwrap(1) for details.
     "--unshare-user-try"
@@ -61,10 +63,11 @@ let
 
     bindPaths
     bindRoPaths
+    (optionals (config.bubblewrap.clearEnv) "--clearenv")
     envVars
     tmpfs
-
-    (optionals config.bubblewrap.network "--share-net")
+    
+    (optionals (config.bubblewrap.network && !config.pasta.enable) "--share-net")
     (optionals config.bubblewrap.apivfs.dev ["--dev" "/dev"])
     (optionals config.bubblewrap.apivfs.proc ["--proc" "/proc"])
 
@@ -75,8 +78,6 @@ let
       "--setenv" "DBUS_SESSION_BUS_ADDRESS"
       (concat "unix:path=" (coerceToEnv "$XDG_RUNTIME_DIR/nixpak-bus"))
     ])
-
-    [ "--ro-bind" config.flatpak.infoFile "/.flatpak-info" ]
 
     (optionals config.bubblewrap.bindEntireStore (bindRo "/nix/store"))
   ];
@@ -91,6 +92,10 @@ let
   '';
 
   dbusProxyArgsJson = pkgs.writeText "xdg-dbus-proxy-args.json" (builtins.toJSON dbusProxyArgs);
+
+  pastaArgsJson = pkgs.writeText "pasta-args.json" (builtins.toJSON config.pasta.args);
+
+  waylandProxyArgsJson = pkgs.writeText "wayland-proxy-args.json" (builtins.toJSON config.waylandProxy.args);
 
   mainProgram = builtins.baseNameOf config.app.binPath;
 
@@ -109,8 +114,13 @@ let
         "--set BWRAP_EXE ${config.bubblewrap.package}/bin/bwrap"
         "--set NIXPAK_APP_EXE ${app}${executablePath}"
         "--set BUBBLEWRAP_ARGS ${bwrapArgsJson}"
+        "--set FLATPAK_METADATA_TEMPLATE ${config.flatpak.infoFile}"
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_EXE ${dbusProxyWrapper}")
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_ARGS ${dbusProxyArgsJson}")
+        (optionals pastaEnable "--set PASTA_EXE ${config.pasta.package}/bin/pasta")
+        (optionals pastaEnable "--set PASTA_ARGS ${pastaArgsJson}")
+        (optionals config.waylandProxy.enable "--set WAYLAND_PROXY_EXE ${config.waylandProxy.package}/bin/wayland-proxy-virtwl")
+        (optionals config.waylandProxy.enable "--set WAYLAND_PROXY_ARGS ${waylandProxyArgsJson}")
       ])}
   '');
 
@@ -122,33 +132,46 @@ let
   envOverrides = pkgs.runCommand "nixpak-overrides-${app.name}" {} (''
     mkdir $out
     cd ${app}
-    grep -Rl ${app}/${config.app.binPath} | xargs -r -I {} cp -r --parents --no-preserve=mode {} $out || true
-    find $out -type f | while read line; do
-      substituteInPlace $line --replace ${app}/${config.app.binPath} ${config.script}/${config.app.binPath}
-    done
     find . -type l | while read line; do
       linkTarget="$(readlink $line)"
       if [[ "$linkTarget" == *${app}* ]]; then
+        newTarget="$(echo $linkTarget | sed 's,${app},${config.script},g')"
+        echo Rewriting symlink "$line": "$linkTarget" '->' "$newTarget"
         mkdir -p $(dirname $out/$line)
-        ln -sf "$(echo $linkTarget | sed 's,${app},${config.script},g')" $out/$line
+        ln -sf "$newTarget" $out/$line
       fi
     done
 
     for desktopFileRel in share/applications/*.desktop; do
       if [[ -e $desktopFileRel ]] && grep -qm1 '[Desktop Entry]' $desktopFileRel; then
+        echo Flatpakizing desktop file: "$desktopFileRel"
         cp --parents --no-preserve=mode $desktopFileRel $out
         sed -i 's/\[Desktop Entry\]$/[Desktop Entry]\nX-Flatpak=${config.flatpak.appId}/g' $out/$desktopFileRel
       fi
     done
+
+    grep -Rl --binary-files=without-match ${app}/${config.app.binPath} | xargs -r cp -r --parents --no-preserve=mode --update=none -t $out || true
+    (grep -Rl --binary-files=without-match ${app}/${config.app.binPath} $out || true) | while read line; do
+      if ! test -L "$line"; then
+        echo Rewriting executable paths in "$line"
+        substituteInPlace "$line" --replace-fail ${app}/${config.app.binPath} ${config.script}/${config.app.binPath}
+      fi
+    done
   '' + lib.optionalString (config.flatpak.desktopFile != "${config.flatpak.appId}.desktop") ''
-    mv $out/share/applications/${config.flatpak.desktopFile} $out/share/applications/${config.flatpak.appId}.desktop
-    ln -s /dev/null $out/share/applications/${config.flatpak.desktopFile}
+    originalDesktopFile="$out/share/applications/${config.flatpak.desktopFile}"
+    newDesktopFile="$out/share/applications/${config.flatpak.appId}.desktop"
+    echo Renaming desktop file "$originalDesktopFile" to "$newDesktopFile"
+    mv "$originalDesktopFile" "$newDesktopFile"
+    ln -s /dev/null "$originalDesktopFile"
   '' + concatStringsSep "\n" (map (entrypoint: let
     entrypointScript = extraEntrypointScripts.${entrypoint};
   in ''
-    grep -Rl ${app}${entrypoint} | xargs -r -I {} cp -r --parents --no-preserve=mode {} $out || true
-    find $out -type f | while read line; do
-      substituteInPlace $line --replace ${app}${entrypoint} ${entrypointScript}${entrypoint}
+    grep -Rl --binary-files=without-match ${app}${entrypoint} | xargs -r cp -r --parents --no-preserve=mode --update=none -t $out || true
+    (grep -Rl --binary-files=without-match ${app}${entrypoint} $out || true) | while read line; do
+      if ! test -L "$line"; then
+        echo Rewriting executable paths in "$line"
+        substituteInPlace "$line" --replace-fail ${app}${entrypoint} ${entrypointScript}${entrypoint}
+      fi
     done
     rm -f $out${entrypoint}
   '') config.app.extraEntrypoints));
@@ -163,12 +186,13 @@ let
       (bind "/var")
       (bind "/tmp")
       (bind "/run")
-      "--ro-bind-try ${config.flatpak.infoFile or "/.flatpak-info-not-found"} /.flatpak-info"
+      "--ro-bind-try \"$FLATPAK_METADATA_FILE\" /.flatpak-info"
     ])} ${pkgs.xdg-dbus-proxy}/bin/xdg-dbus-proxy "$@"
   '';
 
   passthru = {
     extendModules = config._module.args.extendModules;
+    config = config;
   };
 in {
   options = {

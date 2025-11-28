@@ -24,6 +24,13 @@ in
       type = "instanceId";
     };
 
+    uid = {
+      type = "uid";
+    };
+    gid = {
+      type = "gid";
+    };
+
     env = key: {
       inherit key;
       type = "env";
@@ -79,6 +86,8 @@ in
     ];
 
     appCacheDir = sloth.concat' sloth.appDir "/cache";
+
+    appConfigDir = sloth.concat' sloth.appDir "/config";
 
     appDataDir = sloth.concat' sloth.appDir "/data";
 
