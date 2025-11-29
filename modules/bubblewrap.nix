@@ -23,7 +23,6 @@ in {
     network = mkEnableOption "network access in the sandbox" // { default = true; };
     shareIpc = mkEnableOption "host IPC namespace in the sandbox";
     sharePid = mkEnableOption "host PID namespace in the sandbox";
-    shareNet = mkEnableOption "host network namespace in the sandbox";
     shareUts = mkEnableOption "host UTS namespace in the sandbox";
     shareCgroup = mkEnableOption "host cgroup namespace in the sandbox";
 

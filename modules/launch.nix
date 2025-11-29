@@ -57,7 +57,6 @@ let
     "--unshare-user-try"
     (optionals (!config.bubblewrap.shareIpc) "--unshare-ipc")
     (optionals (!config.bubblewrap.sharePid) "--unshare-pid")
-    (optionals (!config.bubblewrap.shareNet) "--unshare-net")
     (optionals (!config.bubblewrap.shareUts) "--unshare-uts")
     (optionals (!config.bubblewrap.shareCgroup) "--unshare-cgroup-try")
 
