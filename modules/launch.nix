@@ -66,7 +66,7 @@ let
     (optionals (config.bubblewrap.clearEnv) "--clearenv")
     envVars
     tmpfs
-    
+
     (optionals (config.bubblewrap.network && !config.pasta.enable) "--share-net")
     (optionals config.bubblewrap.apivfs.dev ["--dev" "/dev"])
     (optionals config.bubblewrap.apivfs.proc ["--proc" "/proc"])
@@ -115,6 +115,7 @@ let
         "--set NIXPAK_APP_EXE ${app}${executablePath}"
         "--set BUBBLEWRAP_ARGS ${bwrapArgsJson}"
         "--set FLATPAK_METADATA_TEMPLATE ${config.flatpak.infoFile}"
+        (optionals config.bubblewrap.sharePgid "--set NIXPAK_SHARE_PGID 1")
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_EXE ${dbusProxyWrapper}")
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_ARGS ${dbusProxyArgsJson}")
         (optionals pastaEnable "--set PASTA_EXE ${config.pasta.package}/bin/pasta")

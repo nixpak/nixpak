@@ -72,6 +72,8 @@ in {
       default = pkgs.bubblewrap;
     };
 
+    sharePgid = mkEnableOption "share PGID with launcher" // { default = false; };
+
     apivfs = {
       proc = mkMountToggle "the /proc API VFS";
       dev = mkMountToggle "the /dev API VFS";
