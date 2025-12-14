@@ -84,6 +84,12 @@ in {
       type = with types; attrsOf (nullOr sloth.type);
       default = {};
     };
+
+    newSession = mkOption {
+      description = "Protects against out-of-sandbox command execution.";
+      type = types.bool;
+      default = false;
+    };
   };
 
   config = {

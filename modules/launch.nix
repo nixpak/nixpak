@@ -71,6 +71,8 @@ let
     (optionals config.bubblewrap.apivfs.dev ["--dev" "/dev"])
     (optionals config.bubblewrap.apivfs.proc ["--proc" "/proc"])
 
+    (optionals config.bubblewrap.newSession "--new-session")
+
     bindDevPaths
     
     (optionals config.dbus.enable [
