@@ -90,6 +90,12 @@ in {
       type = types.bool;
       default = false;
     };
+
+    dieWithParent = mkOption {
+      description = "Ensures child processes die when parent dies.";
+      type = types.bool;
+      default = false;
+    };
   };
 
   config = {

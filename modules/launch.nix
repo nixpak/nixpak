@@ -72,6 +72,7 @@ let
     (optionals config.bubblewrap.apivfs.proc ["--proc" "/proc"])
 
     (optionals config.bubblewrap.newSession "--new-session")
+    (optionals config.bubblewrap.dieWithParent "--die-with-parent")
 
     bindDevPaths
     
