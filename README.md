@@ -1,13 +1,10 @@
-# NixPak - Sandboxing for Nix
+# NixPak — Declarative Runtime Sandboxing for Nix Applications
 
-> Nix? Flatpak? Why not both?
+NixPak is a declarative wrapper around [bubblewrap](https://github.com/containers/bubblewrap) that provides fine-grained runtime sandboxing for applications built with Nix, including graphical ones.
 
-NixPak is essentially a fancy declarative wrapper around
-[bwrap](https://github.com/containers/bubblewrap).
-You can use it to sandbox all sorts of Nix-packaged applications,
-including graphical ones.
+Unlike packaging and distribution systems such as Flatpak, NixPak is **not** a nix based packaging format which outputs Flatpak images. Using existing Nix derivations, nixpak wraps programs from the /nix/store and adds configurable sandboxing restrictions at launch time, leveraging Nix's reproducibility while keeping the sandbox configuration itself declarative and reproducible.
 
-It also optionally integrates with the following tools:
+It optionally integrates with the following tools:
 - [pasta](https://passt.top/) for highly customizable network isolation
 - [xdg-dbus-proxy](https://github.com/flatpak/xdg-dbus-proxy) for D-Bus service access control
 - [wayland-proxy-virtwl](https://github.com/talex5/wayland-proxy-virtwl) for Wayland protocol access control
