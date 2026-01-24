@@ -15,6 +15,11 @@ with lib;
         type = types.path;
         default = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
       };
+      trustSourcePath = mkOption {
+        description = "Trust source database file";
+        type = types.path;
+        default = "${pkgs.cacert.p11kit}/etc/ssl/trust-source";
+      };
     };
   };
 
@@ -22,6 +27,7 @@ with lib;
     bubblewrap.bind.ro = [
       [ cfg.path "/etc/ssl/certs/ca-bundle.crt" ]
       [ cfg.path "/etc/ssl/certs/ca-certificates.crt" ]
+      [ cfg.trustSourcePath "/etc/ssl/trust-source" ]
     ];
   };
 }
