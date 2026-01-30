@@ -2,7 +2,7 @@
 with lib;
 let
   # most of the things here should probably be incorporated into a module
-  
+
   # TODO: make a proper type for env vars or pathspecs
   coerceToEnv = val: let
     parsed = strings.match "^\\$([a-zA-Z0-9_]*)(/(.*))?$" val;
@@ -37,7 +37,7 @@ let
   bindDev = bind' "--dev-bind-try";
   setEnv = key: val: [ "--setenv" key val ];
   mountTmpfs = path: [ "--tmpfs" path ];
-  
+
   bindPaths = map bind config.bubblewrap.bind.rw;
   bindRoPaths = map bindRo config.bubblewrap.bind.ro;
   bindDevPaths = map bindDev config.bubblewrap.bind.dev;
@@ -49,24 +49,23 @@ let
   info = pkgs.closureInfo { inherit rootPaths; };
   launcher = pkgs.callPackage ../launcher {};
   dbusOutsidePath = concat (env "XDG_RUNTIME_DIR") (concat "/nixpak-bus-" instanceId);
-  
+
   pastaEnable = config.bubblewrap.network && config.pasta.enable;
 
   bwrapArgs = flatten [
     # This is the equivalent of --unshare-all, see bwrap(1) for details.
     "--unshare-user-try"
     (optionals (!config.bubblewrap.shareIpc) "--unshare-ipc")
-    "--unshare-pid"
-    "--unshare-net"      
-    "--unshare-uts"
-    "--unshare-cgroup-try"
+    (optionals (!config.bubblewrap.sharePid) "--unshare-pid")
+    (optionals (!config.bubblewrap.shareUts) "--unshare-uts")
+    (optionals (!config.bubblewrap.shareCgroup) "--unshare-cgroup-try")
 
     bindPaths
     bindRoPaths
     (optionals (config.bubblewrap.clearEnv) "--clearenv")
     envVars
     tmpfs
-    
+
     (optionals (config.bubblewrap.network && !config.pasta.enable) "--share-net")
     (optionals config.bubblewrap.apivfs.dev ["--dev" "/dev"])
     (optionals config.bubblewrap.apivfs.proc ["--proc" "/proc"])
@@ -75,7 +74,7 @@ let
     (optionals config.bubblewrap.dieWithParent "--die-with-parent")
 
     bindDevPaths
-    
+
     (optionals config.dbus.enable [
       (bind [ dbusOutsidePath "$XDG_RUNTIME_DIR/nixpak-bus" ])
       "--setenv" "DBUS_SESSION_BUS_ADDRESS"
@@ -118,6 +117,7 @@ let
         "--set NIXPAK_APP_EXE ${app}${executablePath}"
         "--set BUBBLEWRAP_ARGS ${bwrapArgsJson}"
         "--set FLATPAK_METADATA_TEMPLATE ${config.flatpak.infoFile}"
+        (optionals config.bubblewrap.sharePgid "--set NIXPAK_SHARE_PGID 1")
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_EXE ${dbusProxyWrapper}")
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_ARGS ${dbusProxyArgsJson}")
         (optionals pastaEnable "--set PASTA_EXE ${config.pasta.package}/bin/pasta")
