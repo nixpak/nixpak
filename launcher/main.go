@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/base32"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -15,6 +17,8 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"golang.org/x/sys/unix"
+	godbus "github.com/godbus/dbus/v5"
+	systemdbus "github.com/coreos/go-systemd/v22/dbus"
 )
 
 type JsonRaw = map[string]any
@@ -230,6 +234,99 @@ type Config struct {
 	WaylandProxyExe         string
 	WaylandProxyArgs        []string
 	WaylandProxySocketPath  string
+}
+
+func startSessionHelper(ready chan bool, sessionHelperPath string) {
+	sdconn, conn_err := systemdbus.NewUserConnectionContext(context.Background())
+	if conn_err != nil {
+		log.Println("Failed to connect to systemd bus:", conn_err)
+	}
+	defer sdconn.Close()
+
+	sessionconn, conn_err := godbus.SessionBus()
+	if conn_err != nil {
+		log.Println("Failed to connect to session bus:", conn_err.Error())
+	}
+	defer sessionconn.Close()
+
+
+	// Wait for FSH's name to appear on the bus
+	err := sessionconn.AddMatchSignal(
+		godbus.WithMatchInterface("org.freedesktop.DBus"),
+		godbus.WithMatchMember("NameOwnerChanged"),
+	)
+	if err != nil {
+		log.Println("Failed to add match for NameOwnerChanged:", err)
+	}
+
+	c := make(chan *godbus.Signal, 10)
+	sessionconn.Signal(c)
+
+	_, start_err := sdconn.StartUnitContext(
+		context.Background(),
+		"flatpak-session-helper.service",
+		"fail",
+		nil,
+	)
+
+	// If starting the existing service failed, it probably doesn't actually exist
+	if start_err != nil {
+		_, startnew_err := sdconn.StartTransientUnitContext(
+			context.Background(),
+			"flatpak-session-helper.service",
+			"fail",
+			[]systemdbus.Property{
+				systemdbus.PropDescription("Flatpak Session Helper for Nixpak"),
+				systemdbus.PropExecStart([]string {sessionHelperPath}, true),
+				systemdbus.PropType("dbus"),
+				systemdbus.Property{
+					Name:  "BusName",
+					Value: godbus.MakeVariant("org.freedesktop.Flatpak"),
+				},
+			},
+			nil,
+		)
+
+		if startnew_err != nil {
+			log.Println("Failed to start transient session helper service:", startnew_err)
+		}
+	}
+
+	obj := sessionconn.Object("org.freedesktop.DBus", "/org/freedesktop/DBus");
+	var isReady bool
+	name_err := obj.Call(
+		"org.freedesktop.DBus.NameHasOwner",
+		0,
+		"org.freedesktop.Flatpak",
+	).Store(&isReady)
+	if name_err != nil {
+		log.Println("Failed to check for name on session bus:", name_err)
+	}
+
+	if !isReady {
+		for signal := range c {
+			if len(signal.Body) != 3 {
+				continue
+			}
+
+			name := signal.Body[0].(string)
+			oldOwner := signal.Body[1].(string)
+			newOwner := signal.Body[2].(string)
+
+			if oldOwner == "" && newOwner != "" && name == "org.freedesktop.Flatpak" {
+				break
+			}
+		}
+	}
+
+	sessionconn.RemoveSignal(c)
+
+	_ = sessionconn.RemoveMatchSignal(
+		godbus.WithMatchInterface("org.freedesktop.DBus"),
+		godbus.WithMatchMember("NameOwnerChanged"),
+	)
+
+	ready <- true
 }
 
 func readConfig() (conf Config) {
@@ -652,6 +749,14 @@ func run() error {
 	defer reaper.Close()
 	defer reaper.WaitAndReapAllChildren()
 
+	sessionHelperReady := make(chan bool, 1)
+	sessionHelperPath, foundSessionHelperPath := os.LookupEnv("SESSION_HELPER_EXE")
+	if foundSessionHelperPath {
+		go startSessionHelper(sessionHelperReady, sessionHelperPath)
+	} else {
+		sessionHelperReady <- true
+	}
+
 	var flatpakMetadata FlatpakMetadata
 
 	conf := readConfig()
@@ -673,6 +778,8 @@ func run() error {
 		defer waylandProxy.Close()
 		waylandProxy.WaitUntilStartup()
 	}
+
+	<-sessionHelperReady
 
 	bwrap := StartBwrap(conf, flatpakMetadata)
 	defer bwrap.Close()
