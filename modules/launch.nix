@@ -61,11 +61,8 @@ let
     "--unshare-uts"
     "--unshare-cgroup-try"
 
-    bindPaths
-    bindRoPaths
     (optionals (config.bubblewrap.clearEnv) "--clearenv")
     envVars
-    tmpfs
 
     (optionals (config.bubblewrap.network && !config.pasta.enable) "--share-net")
     (optionals config.bubblewrap.apivfs.dev ["--dev" "/dev"])
@@ -81,17 +78,22 @@ let
       "--setenv" "DBUS_SESSION_BUS_ADDRESS"
       (concat "unix:path=" (coerceToEnv "$XDG_RUNTIME_DIR/nixpak-bus"))
     ])
-
+  ];
+  bwrapMounts = flatten [
+    tmpfs
+    bindPaths
+    bindRoPaths
     (optionals config.bubblewrap.bindEntireStore (bindRo "/nix/store"))
   ];
   dbusProxyArgs = [ (env "DBUS_SESSION_BUS_ADDRESS") dbusOutsidePath ] ++ config.dbus.args ++ [ "--filter" ];
 
-  originalBwrapArgs = pkgs.writeText "bwrap-args.json" (builtins.toJSON bwrapArgs);
-  bwrapArgsJson = if config.bubblewrap.bindEntireStore then originalBwrapArgs else pkgs.runCommand "bwrap-args.json" {
+  bwrapArgsJson = pkgs.writeText "bwrap-args.json" (builtins.toJSON bwrapArgs);
+  origBwrapMounts = pkgs.writeText "bwrap-mounts.json" (builtins.toJSON bwrapMounts);
+  bwrapMountsJson = if config.bubblewrap.bindEntireStore then origBwrapMounts else pkgs.runCommand "bwrap-mounts.json" {
     nativeBuildInputs = [ pkgs.jq ];
   } ''
     jq -nR '[inputs] | map("--ro-bind", ., .)' ${info}/store-paths > store-paths.json
-    jq -s '.[0] + .[1]' ${originalBwrapArgs} store-paths.json > $out
+    jq -s '.[0] + .[1]' ${origBwrapMounts} store-paths.json > $out
   '';
 
   dbusProxyArgsJson = pkgs.writeText "xdg-dbus-proxy-args.json" (builtins.toJSON dbusProxyArgs);
@@ -119,6 +121,7 @@ let
       bwrap = {
         exe = "${config.bubblewrap.package}/bin/bwrap";
         args = bwrapArgsJson;
+        mounts = bwrapMountsJson;
       };
       flatpak.metadata = config.flatpak.infoFile;
       dbus = if (config.dbus.enable)

@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"syscall"
 
@@ -225,8 +226,9 @@ type LauncherCfg struct {
 		Exe string
 	}
 	Bwrap struct {
-		Exe  string
-		Args string
+		Exe    string
+		Args   string
+		Mounts string
 	}
 	Flatpak struct {
 		Metadata string
@@ -256,6 +258,7 @@ type Config struct {
 	AppArgs                 []string
 	BwrapExe                string
 	BwrapArgs               []string
+	BwrapMounts             []string
 	UseDbusProxy            bool
 	DbusproxyExe            string
 	DbusproxyArgs           []string
@@ -278,6 +281,7 @@ func readConfig() (conf Config) {
 
 	conf.BwrapExe = launchCfg.Bwrap.Exe
 	conf.BwrapArgs = readJsonArgs(launchCfg.Bwrap.Args)
+	conf.BwrapMounts = readJsonArgs(launchCfg.Bwrap.Mounts)
 
 	conf.UseDbusProxy = launchCfg.Dbus.Enable
 	if conf.UseDbusProxy {
@@ -406,6 +410,24 @@ func (waylandProxy *WaylandProxy) Close() {
 	os.Remove(waylandProxy.SocketPath)
 }
 
+func SortBindPaths(args []string) (newArgs []string) {
+	var bindPathPairs [][3]string
+	for i := 0; i < len(args); i++ {
+		bindPathPairs = append(bindPathPairs, [3]string{args[i], args[i+1], args[i+2]})
+		i += 2
+	}
+	sort.Slice(bindPathPairs, func(i, j int) bool {
+		a, b := bindPathPairs[i][2], bindPathPairs[j][2]
+		return a < b
+	})
+	for i := 0; i < len(bindPathPairs); i++ {
+		newArgs = append(newArgs, bindPathPairs[i][0])
+		newArgs = append(newArgs, bindPathPairs[i][1])
+		newArgs = append(newArgs, bindPathPairs[i][2])
+	}
+	return
+}
+
 type BwrapInfo struct {
 	ChildPid int    `json:"child-pid"`
 	Raw      []byte `json:"-"`
@@ -421,7 +443,10 @@ type Bwrap struct {
 func StartBwrap(conf Config, flatpakMetadata FlatpakMetadata) (bwrap Bwrap) {
 	failed := true
 
-	bwrapArgs := append([]string{"--info-fd", "3", "--block-fd", "4"}, conf.BwrapArgs...)
+	bwrapArgs := conf.BwrapArgs
+	bwrapMounts := SortBindPaths(conf.BwrapMounts)
+	bwrapArgs = append([]string{"--info-fd", "3", "--block-fd", "4"}, bwrapArgs...)
+	bwrapArgs = append(bwrapArgs, bwrapMounts...)
 	if conf.UseFlatpakMetadata {
 		bwrapArgs = append(bwrapArgs, []string{"--ro-bind", flatpakMetadata.MetadataDirectory + "/info", "/.flatpak-info"}...)
 	}
