@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/md5"
 	"encoding/base32"
 	"encoding/json"
@@ -213,6 +214,43 @@ func waitUntilFileAppears(filename string) {
 	}
 }
 
+type ExtraBinCfg struct {
+	Enable bool
+	Exe    string
+	Args   string
+}
+
+type LauncherCfg struct {
+	App struct {
+		Exe string
+	}
+	Bwrap struct {
+		Exe  string
+		Args string
+	}
+	Flatpak struct {
+		Metadata string
+	}
+	Dbus    ExtraBinCfg
+	Pasta   ExtraBinCfg
+	Wayland ExtraBinCfg
+}
+
+func initLauncherCfg() (cfg LauncherCfg) {
+	file, _ := os.Open(os.Args[1])
+	data, _ := io.ReadAll(file)
+
+	// skip shebang for launcher
+	idx := bytes.IndexByte(data, '\n')
+	data = data[idx+1:]
+
+	err := json.Unmarshal(data, &cfg)
+	if err != nil {
+		panic("Parsing launcher config")
+	}
+	return
+}
+
 type Config struct {
 	AppExe                  string
 	AppArgs                 []string
@@ -233,47 +271,34 @@ type Config struct {
 }
 
 func readConfig() (conf Config) {
-	appExe, foundAppExe := os.LookupEnv("NIXPAK_APP_EXE")
-	if !foundAppExe {
-		panic("No executable given")
-	}
-	conf.AppExe = appExe
-	conf.AppArgs = os.Args[1:]
+	launchCfg := initLauncherCfg()
 
-	bwrapArgsJson, foundBwrapArgs := os.LookupEnv("BUBBLEWRAP_ARGS")
-	if !foundBwrapArgs {
-		panic("No bubblewrap args given")
-	}
-	conf.BwrapArgs = readJsonArgs(bwrapArgsJson)
-	conf.BwrapExe = envOr("BWRAP_EXE", "bwrap")
+	conf.AppExe = launchCfg.App.Exe
+	conf.AppArgs = os.Args[2:]
 
-	dbusproxyArgsJson, useDbusProxy := os.LookupEnv("XDG_DBUS_PROXY_ARGS")
-	conf.UseDbusProxy = useDbusProxy
-	if useDbusProxy {
-		conf.DbusproxyArgs = readJsonArgs(dbusproxyArgsJson)
-		conf.DbusproxyExe = envOr("XDG_DBUS_PROXY_EXE", "xdg-dbus-proxy")
+	conf.BwrapExe = launchCfg.Bwrap.Exe
+	conf.BwrapArgs = readJsonArgs(launchCfg.Bwrap.Args)
+
+	conf.UseDbusProxy = launchCfg.Dbus.Enable
+	if conf.UseDbusProxy {
+		conf.DbusproxyExe = launchCfg.Dbus.Exe
+		conf.DbusproxyArgs = readJsonArgs(launchCfg.Dbus.Args)
 	}
 
-	pastaArgsJson, usePasta := os.LookupEnv("PASTA_ARGS")
-	conf.UsePasta = usePasta
-	if usePasta {
-		conf.PastaArgs = readJsonArgs(pastaArgsJson)
-		conf.PastaExe = envOr("PASTA_EXE", "pasta")
+	conf.UsePasta = launchCfg.Pasta.Enable
+	if conf.UsePasta {
+		conf.PastaExe = launchCfg.Pasta.Exe
+		conf.PastaArgs = readJsonArgs(launchCfg.Pasta.Args)
 	}
 
-	flatpakMetadataTemplate, useFlatpakMetadata := os.LookupEnv("FLATPAK_METADATA_TEMPLATE")
-	conf.UseFlatpakMetadata = useFlatpakMetadata
-	if useFlatpakMetadata {
-		conf.FlatpakMetadataTemplate = flatpakMetadataTemplate
-	}
+	conf.UseFlatpakMetadata = true
+	conf.FlatpakMetadataTemplate = launchCfg.Flatpak.Metadata
 
-	waylandProxyArgsJson, useWaylandProxy := os.LookupEnv("WAYLAND_PROXY_ARGS")
-	conf.UseWaylandProxy = useWaylandProxy
-	if useWaylandProxy {
-		conf.WaylandProxyArgs = readJsonArgs(waylandProxyArgsJson)
-		conf.WaylandProxyExe = envOr("WAYLAND_PROXY_EXE", "wayland-proxy-virtwl")
+	conf.UseWaylandProxy = launchCfg.Wayland.Enable
+	if conf.UseWaylandProxy {
+		conf.WaylandProxyExe = launchCfg.Wayland.Exe
+		conf.WaylandProxyArgs = readJsonArgs(launchCfg.Wayland.Args)
 		conf.WaylandProxySocketPath = filepath.Join(requiredEnv("XDG_RUNTIME_DIR"), "nixpak-wayland-"+instanceId())
-
 		if _, err := os.Stat(conf.WaylandProxySocketPath); err == nil {
 			panic("Wayland proxy socket already exists")
 		}
