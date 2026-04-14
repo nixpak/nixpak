@@ -36,7 +36,6 @@ with lib;
     # Disable services not needed due to --config-net
     "--no-dhcp"
     "--no-dhcpv6"
-    "--no-ndp"
     "--no-ra"
     # Mapping the gateway address to host also does not make sense in transparent mode, because this would prevent connections to the original gateway copied from host
     "--no-map-gw"
