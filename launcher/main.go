@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/md5"
 	"encoding/base32"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"syscall"
 
@@ -213,11 +215,50 @@ func waitUntilFileAppears(filename string) {
 	}
 }
 
+type ExtraBinCfg struct {
+	Enable bool
+	Exe    string
+	Args   string
+}
+
+type LauncherCfg struct {
+	App struct {
+		Exe string
+	}
+	Bwrap struct {
+		Exe    string
+		Args   string
+		Mounts string
+	}
+	Flatpak struct {
+		Metadata string
+	}
+	Dbus    ExtraBinCfg
+	Pasta   ExtraBinCfg
+	Wayland ExtraBinCfg
+}
+
+func initLauncherCfg() (cfg LauncherCfg) {
+	file, _ := os.Open(os.Args[1])
+	data, _ := io.ReadAll(file)
+
+	// skip shebang for launcher
+	idx := bytes.IndexByte(data, '\n')
+	data = data[idx+1:]
+
+	err := json.Unmarshal(data, &cfg)
+	if err != nil {
+		panic("Parsing launcher config")
+	}
+	return
+}
+
 type Config struct {
 	AppExe                  string
 	AppArgs                 []string
 	BwrapExe                string
 	BwrapArgs               []string
+	BwrapMounts             []string
 	UseDbusProxy            bool
 	DbusproxyExe            string
 	DbusproxyArgs           []string
@@ -233,47 +274,35 @@ type Config struct {
 }
 
 func readConfig() (conf Config) {
-	appExe, foundAppExe := os.LookupEnv("NIXPAK_APP_EXE")
-	if !foundAppExe {
-		panic("No executable given")
-	}
-	conf.AppExe = appExe
-	conf.AppArgs = os.Args[1:]
+	launchCfg := initLauncherCfg()
 
-	bwrapArgsJson, foundBwrapArgs := os.LookupEnv("BUBBLEWRAP_ARGS")
-	if !foundBwrapArgs {
-		panic("No bubblewrap args given")
-	}
-	conf.BwrapArgs = readJsonArgs(bwrapArgsJson)
-	conf.BwrapExe = envOr("BWRAP_EXE", "bwrap")
+	conf.AppExe = launchCfg.App.Exe
+	conf.AppArgs = os.Args[2:]
 
-	dbusproxyArgsJson, useDbusProxy := os.LookupEnv("XDG_DBUS_PROXY_ARGS")
-	conf.UseDbusProxy = useDbusProxy
-	if useDbusProxy {
-		conf.DbusproxyArgs = readJsonArgs(dbusproxyArgsJson)
-		conf.DbusproxyExe = envOr("XDG_DBUS_PROXY_EXE", "xdg-dbus-proxy")
+	conf.BwrapExe = launchCfg.Bwrap.Exe
+	conf.BwrapArgs = readJsonArgs(launchCfg.Bwrap.Args)
+	conf.BwrapMounts = readJsonArgs(launchCfg.Bwrap.Mounts)
+
+	conf.UseDbusProxy = launchCfg.Dbus.Enable
+	if conf.UseDbusProxy {
+		conf.DbusproxyExe = launchCfg.Dbus.Exe
+		conf.DbusproxyArgs = readJsonArgs(launchCfg.Dbus.Args)
 	}
 
-	pastaArgsJson, usePasta := os.LookupEnv("PASTA_ARGS")
-	conf.UsePasta = usePasta
-	if usePasta {
-		conf.PastaArgs = readJsonArgs(pastaArgsJson)
-		conf.PastaExe = envOr("PASTA_EXE", "pasta")
+	conf.UsePasta = launchCfg.Pasta.Enable
+	if conf.UsePasta {
+		conf.PastaExe = launchCfg.Pasta.Exe
+		conf.PastaArgs = readJsonArgs(launchCfg.Pasta.Args)
 	}
 
-	flatpakMetadataTemplate, useFlatpakMetadata := os.LookupEnv("FLATPAK_METADATA_TEMPLATE")
-	conf.UseFlatpakMetadata = useFlatpakMetadata
-	if useFlatpakMetadata {
-		conf.FlatpakMetadataTemplate = flatpakMetadataTemplate
-	}
+	conf.UseFlatpakMetadata = true
+	conf.FlatpakMetadataTemplate = launchCfg.Flatpak.Metadata
 
-	waylandProxyArgsJson, useWaylandProxy := os.LookupEnv("WAYLAND_PROXY_ARGS")
-	conf.UseWaylandProxy = useWaylandProxy
-	if useWaylandProxy {
-		conf.WaylandProxyArgs = readJsonArgs(waylandProxyArgsJson)
-		conf.WaylandProxyExe = envOr("WAYLAND_PROXY_EXE", "wayland-proxy-virtwl")
+	conf.UseWaylandProxy = launchCfg.Wayland.Enable
+	if conf.UseWaylandProxy {
+		conf.WaylandProxyExe = launchCfg.Wayland.Exe
+		conf.WaylandProxyArgs = readJsonArgs(launchCfg.Wayland.Args)
 		conf.WaylandProxySocketPath = filepath.Join(requiredEnv("XDG_RUNTIME_DIR"), "nixpak-wayland-"+instanceId())
-
 		if _, err := os.Stat(conf.WaylandProxySocketPath); err == nil {
 			panic("Wayland proxy socket already exists")
 		}
@@ -381,6 +410,24 @@ func (waylandProxy *WaylandProxy) Close() {
 	os.Remove(waylandProxy.SocketPath)
 }
 
+func SortBindPaths(args []string) (newArgs []string) {
+	var bindPathPairs [][3]string
+	for i := 0; i < len(args); i++ {
+		bindPathPairs = append(bindPathPairs, [3]string{args[i], args[i+1], args[i+2]})
+		i += 2
+	}
+	sort.Slice(bindPathPairs, func(i, j int) bool {
+		a, b := bindPathPairs[i][2], bindPathPairs[j][2]
+		return a < b
+	})
+	for i := 0; i < len(bindPathPairs); i++ {
+		newArgs = append(newArgs, bindPathPairs[i][0])
+		newArgs = append(newArgs, bindPathPairs[i][1])
+		newArgs = append(newArgs, bindPathPairs[i][2])
+	}
+	return
+}
+
 type BwrapInfo struct {
 	ChildPid int    `json:"child-pid"`
 	Raw      []byte `json:"-"`
@@ -396,7 +443,10 @@ type Bwrap struct {
 func StartBwrap(conf Config, flatpakMetadata FlatpakMetadata) (bwrap Bwrap) {
 	failed := true
 
-	bwrapArgs := append([]string{"--info-fd", "3", "--block-fd", "4"}, conf.BwrapArgs...)
+	bwrapArgs := conf.BwrapArgs
+	bwrapMounts := SortBindPaths(conf.BwrapMounts)
+	bwrapArgs = append([]string{"--info-fd", "3", "--block-fd", "4"}, bwrapArgs...)
+	bwrapArgs = append(bwrapArgs, bwrapMounts...)
 	if conf.UseFlatpakMetadata {
 		bwrapArgs = append(bwrapArgs, []string{"--ro-bind", flatpakMetadata.MetadataDirectory + "/info", "/.flatpak-info"}...)
 	}
