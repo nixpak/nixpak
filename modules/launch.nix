@@ -2,7 +2,7 @@
 with lib;
 let
   # most of the things here should probably be incorporated into a module
-  
+
   # TODO: make a proper type for env vars or pathspecs
   coerceToEnv = val: let
     parsed = strings.match "^\\$([a-zA-Z0-9_]*)(/(.*))?$" val;
@@ -35,12 +35,14 @@ let
   bind = bind' "--bind-try";
   bindRo = bind' "--ro-bind-try";
   bindDev = bind' "--dev-bind-try";
+  symlink = bind' "--symlink";
   setEnv = key: val: [ "--setenv" key val ];
   mountTmpfs = path: [ "--tmpfs" path ];
-  
+
   bindPaths = map bind config.bubblewrap.bind.rw;
   bindRoPaths = map bindRo config.bubblewrap.bind.ro;
   bindDevPaths = map bindDev config.bubblewrap.bind.dev;
+  symlinkPaths = map symlink config.bubblewrap.symlink;
   envVars = mapAttrsToList setEnv config.bubblewrap.env;
   tmpfs = map mountTmpfs config.bubblewrap.tmpfs;
 
@@ -49,7 +51,7 @@ let
   info = pkgs.closureInfo { inherit rootPaths; };
   launcher = pkgs.callPackage ../launcher {};
   dbusOutsidePath = concat (env "XDG_RUNTIME_DIR") (concat "/nixpak-bus-" instanceId);
-  
+
   pastaEnable = config.bubblewrap.network && config.pasta.enable;
 
   bwrapArgs = flatten [
@@ -57,16 +59,17 @@ let
     "--unshare-user-try"
     (optionals (!config.bubblewrap.shareIpc) "--unshare-ipc")
     "--unshare-pid"
-    "--unshare-net"      
+    "--unshare-net"
     "--unshare-uts"
     "--unshare-cgroup-try"
 
     bindPaths
     bindRoPaths
     (optionals (config.bubblewrap.clearEnv) "--clearenv")
+    symlinkPaths
     envVars
     tmpfs
-    
+
     (optionals (config.bubblewrap.network && !config.pasta.enable) "--share-net")
     (optionals config.bubblewrap.apivfs.dev ["--dev" "/dev"])
     (optionals config.bubblewrap.apivfs.proc ["--proc" "/proc"])
@@ -75,7 +78,7 @@ let
     (optionals config.bubblewrap.dieWithParent "--die-with-parent")
 
     bindDevPaths
-    
+
     (optionals config.dbus.enable [
       (bind [ dbusOutsidePath "$XDG_RUNTIME_DIR/nixpak-bus" ])
       "--setenv" "DBUS_SESSION_BUS_ADDRESS"
@@ -118,6 +121,10 @@ let
         "--set NIXPAK_APP_EXE ${app}${executablePath}"
         "--set BUBBLEWRAP_ARGS ${bwrapArgsJson}"
         "--set FLATPAK_METADATA_TEMPLATE ${config.flatpak.infoFile}"
+        (optionals
+          config.flatpak.session-helper.enable
+          "--set SESSION_HELPER_EXE ${pkgs.flatpak}/libexec/flatpak-session-helper"
+        )
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_EXE ${dbusProxyWrapper}")
         (optionals config.dbus.enable "--set XDG_DBUS_PROXY_ARGS ${dbusProxyArgsJson}")
         (optionals pastaEnable "--set PASTA_EXE ${config.pasta.package}/bin/pasta")
