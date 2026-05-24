@@ -218,6 +218,7 @@ type Config struct {
 	AppArgs                 []string
 	BwrapExe                string
 	BwrapArgs               []string
+	SharePgid               bool
 	UseDbusProxy            bool
 	DbusproxyExe            string
 	DbusproxyArgs           []string
@@ -246,6 +247,8 @@ func readConfig() (conf Config) {
 	}
 	conf.BwrapArgs = readJsonArgs(bwrapArgsJson)
 	conf.BwrapExe = envOr("BWRAP_EXE", "bwrap")
+
+	conf.SharePgid = os.Getenv("NIXPAK_SHARE_PGID") == "1"
 
 	dbusproxyArgsJson, useDbusProxy := os.LookupEnv("XDG_DBUS_PROXY_ARGS")
 	conf.UseDbusProxy = useDbusProxy
@@ -410,7 +413,7 @@ func StartBwrap(conf Config, flatpakMetadata FlatpakMetadata) (bwrap Bwrap) {
 	bwrapArgs = append(bwrapArgs, conf.AppArgs...)
 
 	cmd := exec.Command(conf.BwrapExe, bwrapArgs...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: !conf.SharePgid}
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
