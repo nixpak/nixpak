@@ -6,7 +6,7 @@ let
     type = types.bool;
     description = "Whether to mount ${desc}.";
   };
-  
+
   pairOf = elemType: with types; let
     list = nonEmptyListOf elemType;
     checked = addCheck list (l: length l == 2);
@@ -38,6 +38,12 @@ in {
     bind.dev = mkOption {
       description = "Devices to bind-mount into the sandbox.";
       type = bindType;
+      default = [];
+    };
+
+    symlink = mkOption {
+      description = "Files that should be symlinked within the sandbox.";
+      type = with types; listOf (listOf sloth.type);
       default = [];
     };
 
@@ -100,11 +106,13 @@ in {
 
   config = {
     bubblewrap.bind.ro = let
-      mapNetFiles = config.bubblewrap.network && !config.pasta.enable;
       cfg = config.bubblewrap.sockets;
     in
-      (optional mapNetFiles "/etc/resolv.conf")
-      ++ (optional mapNetFiles "/etc/hosts")
+      (optional config.flatpak.session-helper.enable [ (sloth.concat' sloth.runtimeDir "/.flatpak-helper/monitor") "/run/host/monitor" ])
+      ++ (optionals (config.bubblewrap.network && !config.flatpak.session-helper.enable) [
+        "/etc/resolv.conf"
+        "/etc/hosts"
+      ])
       ++ (optional cfg.wayland (sloth.concat [sloth.runtimeDir "/" (sloth.envOr "WAYLAND_DISPLAY" "wayland-0")]))
       ++ (optional cfg.pipewire (sloth.concat' sloth.runtimeDir "/pipewire-0"))
       ++ (optionals cfg.x11 [
@@ -112,5 +120,16 @@ in {
         "/tmp/.X11-unix"
       ])
       ++ (optional cfg.pulse (sloth.concat' sloth.runtimeDir "/pulse"));
+
+    bubblewrap.symlink = optionals
+      config.flatpak.session-helper.enable
+      (map (n: ["/run/host/monitor/${n}" "/etc/${n}"]) [
+        "resolv.conf"
+        "host.conf"
+        "hosts"
+        "gai.conf"
+        "timezone"
+        "localtime"
+      ]);
   };
 }

@@ -21,6 +21,7 @@ lib.evalModules {
 
     ./flatpak-shim/flatpak-desktop-file.nix
     ./flatpak-shim/flatpak-info.nix
+    ./flatpak-shim/flatpak-session-helper.nix
 
     ./gui/fonts.nix
 
