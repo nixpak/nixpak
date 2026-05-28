@@ -11,6 +11,7 @@ It also optionally integrates with the following tools:
 - [pasta](https://passt.top/) for highly customizable network isolation
 - [xdg-dbus-proxy](https://github.com/flatpak/xdg-dbus-proxy) for D-Bus service access control
 - [wayland-proxy-virtwl](https://github.com/talex5/wayland-proxy-virtwl) for Wayland protocol access control
+- [pw-container](https://docs.pipewire.org/page_man_pw-container_1.html) for PipeWire access control
 
 ## Features
 

@@ -230,6 +230,12 @@ type Config struct {
 	WaylandProxyExe         string
 	WaylandProxyArgs        []string
 	WaylandProxySocketPath  string
+	UsePipewireContainer    bool
+	PipewireContainerExe    string
+	PipewireContainerArgs   []string
+	PipewireSocketPathInner string
+	UsePipewirePulse        bool
+	PipewirePulseExe        string
 }
 
 func readConfig() (conf Config) {
@@ -277,6 +283,19 @@ func readConfig() (conf Config) {
 		if _, err := os.Stat(conf.WaylandProxySocketPath); err == nil {
 			panic("Wayland proxy socket already exists")
 		}
+	}
+
+	pipewireContainerArgsJson, usePipewireContainer := os.LookupEnv("PIPEWIRE_CONTAINER_ARGS")
+	conf.UsePipewireContainer = usePipewireContainer
+	if usePipewireContainer {
+		conf.PipewireContainerArgs = readJsonArgs(pipewireContainerArgsJson)
+		conf.PipewireContainerExe = envOr("PIPEWIRE_CONTAINER_EXE", "pw-container")
+		conf.PipewireSocketPathInner = filepath.Join(requiredEnv("XDG_RUNTIME_DIR"), "nixpak-pipewire")
+	}
+	pipewirePulseExe, usePipewirePulse := os.LookupEnv("PIPEWIRE_PULSE_EXE")
+	conf.UsePipewirePulse = usePipewirePulse
+	if usePipewirePulse {
+		conf.PipewirePulseExe = pipewirePulseExe
 	}
 
 	return
@@ -381,6 +400,53 @@ func (waylandProxy *WaylandProxy) Close() {
 	os.Remove(waylandProxy.SocketPath)
 }
 
+type PipewireContainer struct {
+	Cmd    *exec.Cmd
+	Stdout io.ReadCloser
+}
+
+func StartPipewireContainer(conf Config) (pipewireContainer PipewireContainer) {
+	failed := true
+
+	cmd := exec.Command(conf.PipewireContainerExe, conf.PipewireContainerArgs...)
+	cmd.Stderr = os.Stderr
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		panic(err)
+	}
+
+	pipewireContainer.Cmd = cmd
+	pipewireContainer.Stdout = stdout
+
+	if err := cmd.Start(); err != nil {
+		panic(err)
+	}
+	defer func() {
+		if failed {
+			pipewireContainer.Close()
+		}
+	}()
+
+	failed = false
+	return
+}
+
+func (pipewireContainer *PipewireContainer) WaitUntilStartup() (pipewireSocket string) {
+	if _, err := fmt.Fscanf(pipewireContainer.Stdout, "new socket: %s\n", &pipewireSocket); err != nil {
+		panic(err)
+	}
+	if err := pipewireContainer.Stdout.Close(); err != nil {
+		panic(err)
+	}
+
+	return
+}
+
+func (pipewireContainer *PipewireContainer) Close() {
+	pipewireContainer.Cmd.Process.Signal(syscall.SIGTERM)
+	pipewireContainer.Cmd.Wait()
+}
+
 type BwrapInfo struct {
 	ChildPid int    `json:"child-pid"`
 	Raw      []byte `json:"-"`
@@ -393,7 +459,7 @@ type Bwrap struct {
 	Info       BwrapInfo
 }
 
-func StartBwrap(conf Config, flatpakMetadata FlatpakMetadata) (bwrap Bwrap) {
+func StartBwrap(conf Config, flatpakMetadata FlatpakMetadata, pipewireSocket string) (bwrap Bwrap) {
 	failed := true
 
 	bwrapArgs := append([]string{"--info-fd", "3", "--block-fd", "4"}, conf.BwrapArgs...)
@@ -405,7 +471,14 @@ func StartBwrap(conf Config, flatpakMetadata FlatpakMetadata) (bwrap Bwrap) {
 		bwrapArgs = append(bwrapArgs, "--bind", conf.WaylandProxySocketPath, waylandProxySocketPathInner)
 		bwrapArgs = append(bwrapArgs, "--setenv", "WAYLAND_DISPLAY", "nixpak-wayland")
 	}
+	if conf.UsePipewireContainer {
+		bwrapArgs = append(bwrapArgs, "--bind-try", pipewireSocket, conf.PipewireSocketPathInner)
+		bwrapArgs = append(bwrapArgs, "--setenv", "PIPEWIRE_REMOTE", "nixpak-pipewire")
+	}
 	bwrapArgs = append(bwrapArgs, "--")
+	if conf.UsePipewireContainer && conf.UsePipewirePulse {
+		bwrapArgs = append(bwrapArgs, conf.PipewirePulseExe)
+	}
 	bwrapArgs = append(bwrapArgs, conf.AppExe)
 	bwrapArgs = append(bwrapArgs, conf.AppArgs...)
 
@@ -674,7 +747,15 @@ func run() error {
 		waylandProxy.WaitUntilStartup()
 	}
 
-	bwrap := StartBwrap(conf, flatpakMetadata)
+	var pipewireSocket string
+	if conf.UsePipewireContainer {
+		pipewireContainer := StartPipewireContainer(conf)
+		defer pipewireContainer.Close()
+
+		pipewireSocket = pipewireContainer.WaitUntilStartup()
+	}
+
+	bwrap := StartBwrap(conf, flatpakMetadata, pipewireSocket)
 	defer bwrap.Close()
 	bwrapInfo := bwrap.WaitUntilSandboxReady()
 	defer bwrap.CloseChild()
