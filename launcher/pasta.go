@@ -7,10 +7,10 @@ import (
 )
 
 func StartPasta(conf Config, pid int) {
-	pastaArgs := append(conf.PastaArgs, "--")
+	pastaArgs := append(*conf.Pasta.Args, "--")
 	pastaArgs = append(pastaArgs, strconv.Itoa(pid))
 
-	pasta := exec.Command(conf.PastaExe, pastaArgs...)
+	pasta := exec.Command(*conf.Pasta.Exe, pastaArgs...)
 	pasta.Stdout = os.Stdout
 	pasta.Stderr = os.Stderr
 
