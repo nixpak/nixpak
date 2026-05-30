@@ -2,7 +2,7 @@
 with lib;
 let
   # most of the things here should probably be incorporated into a module
-  
+
   # TODO: make a proper type for env vars or pathspecs
   coerceToEnv = val: let
     parsed = strings.match "^\\$([a-zA-Z0-9_]*)(/(.*))?$" val;
@@ -37,7 +37,7 @@ let
   bindDev = bind' "--dev-bind-try";
   setEnv = key: val: [ "--setenv" key val ];
   mountTmpfs = path: [ "--tmpfs" path ];
-  
+
   bindPaths = map bind config.bubblewrap.bind.rw;
   bindRoPaths = map bindRo config.bubblewrap.bind.ro;
   bindDevPaths = map bindDev config.bubblewrap.bind.dev;
@@ -49,7 +49,7 @@ let
   info = pkgs.closureInfo { inherit rootPaths; };
   launcher = pkgs.callPackage ../launcher {};
   dbusOutsidePath = concat (env "XDG_RUNTIME_DIR") (concat "/nixpak-bus-" instanceId);
-  
+
   pastaEnable = config.bubblewrap.network && config.pasta.enable;
 
   bwrapArgs = flatten [
@@ -57,7 +57,7 @@ let
     "--unshare-user-try"
     (optionals (!config.bubblewrap.shareIpc) "--unshare-ipc")
     "--unshare-pid"
-    "--unshare-net"      
+    "--unshare-net"
     "--unshare-uts"
     "--unshare-cgroup-try"
 
@@ -66,7 +66,7 @@ let
     (optionals (config.bubblewrap.clearEnv) "--clearenv")
     envVars
     tmpfs
-    
+
     (optionals (config.bubblewrap.network && !config.pasta.enable) "--share-net")
     (optionals config.bubblewrap.apivfs.dev ["--dev" "/dev"])
     (optionals config.bubblewrap.apivfs.proc ["--proc" "/proc"])
@@ -75,7 +75,7 @@ let
     (optionals config.bubblewrap.dieWithParent "--die-with-parent")
 
     bindDevPaths
-    
+
     (optionals config.dbus.enable [
       (bind [ dbusOutsidePath "$XDG_RUNTIME_DIR/nixpak-bus" ])
       "--setenv" "DBUS_SESSION_BUS_ADDRESS"
@@ -102,6 +102,32 @@ let
 
   mainProgram = builtins.baseNameOf config.app.binPath;
 
+  launcherConfig = let
+    optionalFeature = cond: attrs: {
+      enable = cond;
+    } // optionalAttrs cond attrs;
+  in pkgs.writeText "nixpak-config.json" (builtins.toJSON {
+    bwrap = {
+      exe = "${config.bubblewrap.package}/bin/bwrap";
+      args = bwrapArgsJson;
+    };
+    flatpak = {
+      metadataTemplate = config.flatpak.infoFile;
+    };
+    dbusProxy = optionalFeature config.dbus.enable {
+      exe = dbusProxyWrapper;
+      args = dbusProxyArgsJson;
+    };
+    pasta = optionalFeature pastaEnable {
+      exe = "${config.pasta.package}/bin/pasta";
+      args = pastaArgsJson;
+    };
+    waylandProxy = optionalFeature config.waylandProxy.enable {
+      exe = "${config.waylandProxy.package}/bin/wayland-proxy-virtwl";
+      args = waylandProxyArgsJson;
+    };
+  });
+
   mkWrapperScript = {
     name,
     mainProgram ? null,
@@ -112,19 +138,11 @@ let
     nativeBuildInputs = [ pkgs.makeWrapper ];
     meta = optionalAttrs (mainProgram != null) { inherit mainProgram; };
   } (''
-    makeWrapper ${launcher}/bin/launcher $out${executablePath} \
-      ${concatStringsSep " " (flatten [
-        "--set BWRAP_EXE ${config.bubblewrap.package}/bin/bwrap"
-        "--set NIXPAK_APP_EXE ${app}${executablePath}"
-        "--set BUBBLEWRAP_ARGS ${bwrapArgsJson}"
-        "--set FLATPAK_METADATA_TEMPLATE ${config.flatpak.infoFile}"
-        (optionals config.dbus.enable "--set XDG_DBUS_PROXY_EXE ${dbusProxyWrapper}")
-        (optionals config.dbus.enable "--set XDG_DBUS_PROXY_ARGS ${dbusProxyArgsJson}")
-        (optionals pastaEnable "--set PASTA_EXE ${config.pasta.package}/bin/pasta")
-        (optionals pastaEnable "--set PASTA_ARGS ${pastaArgsJson}")
-        (optionals config.waylandProxy.enable "--set WAYLAND_PROXY_EXE ${config.waylandProxy.package}/bin/wayland-proxy-virtwl")
-        (optionals config.waylandProxy.enable "--set WAYLAND_PROXY_ARGS ${waylandProxyArgsJson}")
-      ])}
+    mkdir -p $(dirname $out${executablePath})
+    echo \
+    '#!${launcher}/bin/launcher
+    ${launcherConfig}
+    ${app}${executablePath}' | install -m755 /dev/stdin $out${executablePath}
   '');
 
   extraEntrypointScripts = genAttrs config.app.extraEntrypoints (entrypoint: mkWrapperScript {
