@@ -9,5 +9,9 @@
       dayOfWeek = "Thu";
       hour = 2;
     };
+    baseMerge = {
+      enable = true;
+      method = "reset";
+    };
   };
 }
