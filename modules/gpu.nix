@@ -45,6 +45,9 @@ in
       bind.ro = [
         [ "${config.gpu.bundlePackage}" "/run/opengl-driver" ]
       ];
+      extraStorePaths = [
+        config.gpu.bundlePackage
+      ];
     };
   }.${config.gpu.provider};
 }
