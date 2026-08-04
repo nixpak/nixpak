@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 )
 
@@ -14,10 +15,10 @@ type WaylandProxy struct {
 func StartWaylandProxy(conf Config) (waylandProxy WaylandProxy) {
 	failed := true
 
-	waylandProxy.SocketPath = conf.WaylandProxySocketPath
-	waylandProxyArgs := append([]string{"--wayland-display=" + waylandProxy.SocketPath}, conf.WaylandProxyArgs...)
+	waylandProxy.SocketPath = filepath.Join(requiredEnv("XDG_RUNTIME_DIR"), "nixpak-wayland-"+instanceId())
+	waylandProxyArgs := append([]string{"--wayland-display=" + waylandProxy.SocketPath}, *conf.WaylandProxy.Args...)
 
-	cmd := exec.Command(conf.WaylandProxyExe, waylandProxyArgs...)
+	cmd := exec.Command(*conf.WaylandProxy.Exe, waylandProxyArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

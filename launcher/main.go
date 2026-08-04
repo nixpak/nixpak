@@ -69,38 +69,38 @@ func run() error {
 
 	var flatpakMetadata FlatpakMetadata
 
-	conf := readConfig()
-
-	if conf.UseFlatpakMetadata {
-		flatpakMetadata.InfoFileTemplate = conf.FlatpakMetadataTemplate
-		flatpakMetadata.MetadataDirectory = os.Getenv("XDG_RUNTIME_DIR") + "/.flatpak/nixpak-app-" + instanceId()
-		flatpakMetadata.Setup()
+	conf, err := readConfig(os.Args[1], os.Args[2:])
+	if err != nil {
+		return err
 	}
 
-	if conf.UseDbusProxy {
-		dbus := StartDbusproxy(conf)
+	flatpakMetadata.InfoFileTemplate = conf.Flatpak.MetadataTemplate
+	flatpakMetadata.MetadataDirectory = os.Getenv("XDG_RUNTIME_DIR") + "/.flatpak/nixpak-app-" + instanceId()
+	flatpakMetadata.Setup()
+
+	if conf.DbusProxy.Enable {
+		dbus := StartDbusproxy(*conf)
 		defer dbus.Close()
 		dbus.WaitUntilStartup()
 	}
 
-	if conf.UseWaylandProxy {
-		waylandProxy := StartWaylandProxy(conf)
+	var waylandProxy WaylandProxy
+	if conf.WaylandProxy.Enable {
+		waylandProxy = StartWaylandProxy(*conf)
 		defer waylandProxy.Close()
 		waylandProxy.WaitUntilStartup()
 	}
 
-	bwrap := StartBwrap(conf, flatpakMetadata)
+	bwrap := StartBwrap(*conf, flatpakMetadata, waylandProxy)
 	defer bwrap.Close()
 	bwrapInfo := bwrap.WaitUntilSandboxReady()
 	defer bwrap.CloseChild()
 
-	if conf.UseFlatpakMetadata {
-		flatpakMetadata.WriteBwrapInfo(bwrapInfo.Raw)
-		defer flatpakMetadata.Cleanup()
-	}
+	flatpakMetadata.WriteBwrapInfo(bwrapInfo.Raw)
+	defer flatpakMetadata.Cleanup()
 
-	if conf.UsePasta {
-		StartPasta(conf, bwrapInfo.ChildPid)
+	if conf.Pasta.Enable {
+		StartPasta(*conf, bwrapInfo.ChildPid)
 	}
 
 	bwrap.NotifySandboxFinished()

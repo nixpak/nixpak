@@ -8,6 +8,21 @@ import (
 	"strconv"
 )
 
+type SlothList []string
+
+func (l *SlothList) UnmarshalJSON(data []byte) error {
+	var filePath string
+	if err := json.Unmarshal(data, &filePath); err != nil {
+		return err
+	}
+	args, err := readJsonArgs(filePath)
+	if err != nil {
+		return err
+	}
+	*l = args
+	return nil
+}
+
 type JsonRaw = map[string]any
 type Thunk func() string
 
@@ -142,12 +157,15 @@ func valToString(item any) (ret string) {
 	}
 }
 
-func readJsonArgs(filename string) (args []string) {
+func readJsonArgs(filename string) (args []string, err error) {
 	file, _ := os.Open(filename)
 	bytes, _ := io.ReadAll(file)
 	var argsRaw []any
 
-	json.Unmarshal(bytes, &argsRaw)
+	err = json.Unmarshal(bytes, &argsRaw)
+	if err != nil {
+		return
+	}
 	for _, item := range argsRaw {
 		args = append(args, valToString(item))
 	}
