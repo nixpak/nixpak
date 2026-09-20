@@ -100,7 +100,9 @@ let
 
   waylandProxyArgsJson = pkgs.writeText "wayland-proxy-args.json" (builtins.toJSON config.waylandProxy.args);
 
-  mainProgram = builtins.baseNameOf config.app.binPath;
+  mainProgram = let
+    program = builtins.baseNameOf config.app.binPath;
+  in if config.app.binPath == "bin/${program}" then program else null;
 
   mkWrapperScript = {
     name,
@@ -213,10 +215,13 @@ in {
     };
   };
 
-  config.script = mkWrapperScript {
+  config.script = mkWrapperScript ({
     name = app.name or "app";
-    inherit mainProgram passthru;
-  };
+    executablePath = "/${config.app.binPath}";
+    inherit passthru;
+  } // optionalAttrs (mainProgram != null) {
+    inherit mainProgram;
+  });
 
   config.env = pkgs.buildEnv {
     inherit (config.script) name meta passthru;
