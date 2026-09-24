@@ -20,8 +20,15 @@ let
   ]);
 in {
   options.bubblewrap = {
-    network = mkEnableOption "network access in the sandbox" // { default = true; };
+    network = mkEnableOption "network access in the sandbox";
     shareIpc = mkEnableOption "host IPC namespace in the sandbox";
+    sharePid = mkEnableOption "host PID namespace in the sandbox";
+
+    extraArgs = mkOption {
+      description = "Extra args for bwrap.";
+      type = types.listOf types.str;
+      default = [];
+    };
 
     bind.rw = mkOption {
       description = "Read-write paths to bind-mount into the sandbox.";
