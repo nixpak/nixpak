@@ -13,9 +13,9 @@ type Dbus struct {
 func StartDbusproxy(conf Config) (dbus Dbus) {
 	failed := true
 
-	dbusproxyArgs := append([]string{"--fd=3"}, conf.DbusproxyArgs...)
+	dbusproxyArgs := append([]string{"--fd=3"}, *conf.DbusProxy.Args...)
 
-	cmd := exec.Command(conf.DbusproxyExe, dbusproxyArgs...)
+	cmd := exec.Command(*conf.DbusProxy.Exe, dbusproxyArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
