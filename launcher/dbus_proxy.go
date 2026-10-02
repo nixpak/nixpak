@@ -10,12 +10,12 @@ type Dbus struct {
 	SyncRead *os.File
 }
 
-func StartDbusproxy(conf Config) (dbus Dbus) {
+func StartDbusproxy(proxyExe string, proxyArgs []string) (dbus Dbus) {
 	failed := true
 
-	dbusproxyArgs := append([]string{"--fd=3"}, conf.DbusproxyArgs...)
+	dbusproxyArgs := append([]string{"--fd=3"}, proxyArgs...)
 
-	cmd := exec.Command(conf.DbusproxyExe, dbusproxyArgs...)
+	cmd := exec.Command(proxyExe, dbusproxyArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

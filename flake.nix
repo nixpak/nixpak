@@ -34,7 +34,7 @@
 
     flake.lib.nixpak = import ./modules;
 
-    perSystem = { pkgs, system, ... }: let
+    perSystem = { pkgs, ... }: let
       mkNixPak = self.lib.nixpak {
         inherit (nixpkgs) lib;
         pkgs = nixpkgs.legacyPackages.x86_64-linux;
