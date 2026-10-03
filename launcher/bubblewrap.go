@@ -23,23 +23,21 @@ type Bwrap struct {
 	Info       BwrapInfo
 }
 
-func StartBwrap(conf Config, flatpakMetadata FlatpakMetadata) (bwrap Bwrap) {
+func StartBwrap(conf Config, flatpakMetadata FlatpakMetadata, waylandProxy WaylandProxy) (bwrap Bwrap) {
 	failed := true
 
-	bwrapArgs := append([]string{"--info-fd", "3", "--block-fd", "4"}, conf.BwrapArgs...)
-	if conf.UseFlatpakMetadata {
-		bwrapArgs = append(bwrapArgs, []string{"--ro-bind", flatpakMetadata.MetadataDirectory + "/info", "/.flatpak-info"}...)
-	}
-	if conf.UseWaylandProxy {
+	bwrapArgs := append([]string{"--info-fd", "3", "--block-fd", "4"}, conf.Bwrap.Args...)
+	bwrapArgs = append(bwrapArgs, []string{"--ro-bind", flatpakMetadata.MetadataDirectory + "/info", "/.flatpak-info"}...)
+	if conf.WaylandProxy.Enable {
 		waylandProxySocketPathInner := filepath.Join(requiredEnv("XDG_RUNTIME_DIR"), "nixpak-wayland")
-		bwrapArgs = append(bwrapArgs, "--bind", conf.WaylandProxySocketPath, waylandProxySocketPathInner)
+		bwrapArgs = append(bwrapArgs, "--bind", waylandProxy.SocketPath, waylandProxySocketPathInner)
 		bwrapArgs = append(bwrapArgs, "--setenv", "WAYLAND_DISPLAY", "nixpak-wayland")
 	}
 	bwrapArgs = append(bwrapArgs, "--")
 	bwrapArgs = append(bwrapArgs, conf.AppExe)
 	bwrapArgs = append(bwrapArgs, conf.AppArgs...)
 
-	cmd := exec.Command(conf.BwrapExe, bwrapArgs...)
+	cmd := exec.Command(conf.Bwrap.Exe, bwrapArgs...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
