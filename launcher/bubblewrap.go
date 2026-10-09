@@ -40,7 +40,6 @@ func StartBwrap(conf Config, flatpakMetadata FlatpakMetadata) (bwrap Bwrap) {
 	bwrapArgs = append(bwrapArgs, conf.AppArgs...)
 
 	cmd := exec.Command(conf.BwrapExe, bwrapArgs...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
