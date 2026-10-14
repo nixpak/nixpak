@@ -35,7 +35,10 @@
           (sloth.concat' sloth.runtimeDir "/at-spi/bus")
           (sloth.concat' sloth.runtimeDir "/gvfsd")
           (sloth.concat' sloth.runtimeDir "/dconf")
-          (sloth.concat' sloth.runtimeDir "/doc")
+          [
+            (sloth.concat' sloth.runtimeDir "/doc/by-app/${config.flatpak.appId}")
+            (sloth.concat' sloth.runtimeDir "/doc")
+          ]
         ];
         bind.ro = [
           (sloth.concat' sloth.xdgConfigHome "/gtk-2.0")
