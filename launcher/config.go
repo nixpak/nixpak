@@ -1,75 +1,64 @@
 package main
 
 import (
+	"encoding/json"
+	"io"
 	"os"
-	"path/filepath"
+	"strings"
 )
 
-type Config struct {
-	AppExe                  string
-	AppArgs                 []string
-	BwrapExe                string
-	BwrapArgs               []string
-	UseDbusProxy            bool
-	DbusproxyExe            string
-	DbusproxyArgs           []string
-	UsePasta                bool
-	PastaExe                string
-	PastaArgs               []string
-	UseFlatpakMetadata      bool
-	FlatpakMetadataTemplate string
-	UseWaylandProxy         bool
-	WaylandProxyExe         string
-	WaylandProxyArgs        []string
-	WaylandProxySocketPath  string
+type ToolConfig struct {
+	Exe  string
+	Args SlothList
 }
 
-func readConfig() (conf Config) {
-	appExe, foundAppExe := os.LookupEnv("NIXPAK_APP_EXE")
-	if !foundAppExe {
-		panic("No executable given")
-	}
-	conf.AppExe = appExe
-	conf.AppArgs = os.Args[1:]
+type OptionalToolConfig struct {
+	Enable bool
+	Exe    *string
+	Args   *SlothList
+}
 
-	bwrapArgsJson, foundBwrapArgs := os.LookupEnv("BUBBLEWRAP_ARGS")
-	if !foundBwrapArgs {
-		panic("No bubblewrap args given")
-	}
-	conf.BwrapArgs = readJsonArgs(bwrapArgsJson)
-	conf.BwrapExe = envOr("BWRAP_EXE", "bwrap")
+type FlatpakConfig struct {
+	MetadataTemplate string
+}
 
-	dbusproxyArgsJson, useDbusProxy := os.LookupEnv("XDG_DBUS_PROXY_ARGS")
-	conf.UseDbusProxy = useDbusProxy
-	if useDbusProxy {
-		conf.DbusproxyArgs = readJsonArgs(dbusproxyArgsJson)
-		conf.DbusproxyExe = envOr("XDG_DBUS_PROXY_EXE", "xdg-dbus-proxy")
-	}
+type Config struct {
+	AppExe       string
+	AppArgs      []string
+	Bwrap        ToolConfig         `json:"bwrap"`
+	Flatpak      FlatpakConfig      `json:"flatpak"`
+	DbusProxy    OptionalToolConfig `json:"dbusProxy"`
+	Pasta        OptionalToolConfig `json:"pasta"`
+	WaylandProxy OptionalToolConfig `json:"waylandProxy"`
+}
 
-	pastaArgsJson, usePasta := os.LookupEnv("PASTA_ARGS")
-	conf.UsePasta = usePasta
-	if usePasta {
-		conf.PastaArgs = readJsonArgs(pastaArgsJson)
-		conf.PastaExe = envOr("PASTA_EXE", "pasta")
+func readConfig(path string, appArgs []string) (*Config, error) {
+	toplevel, err := os.Open(path)
+	if err != nil {
+		return nil, err
 	}
+	defer toplevel.Close()
 
-	flatpakMetadataTemplate, useFlatpakMetadata := os.LookupEnv("FLATPAK_METADATA_TEMPLATE")
-	conf.UseFlatpakMetadata = useFlatpakMetadata
-	if useFlatpakMetadata {
-		conf.FlatpakMetadataTemplate = flatpakMetadataTemplate
+	fileBytes, err := io.ReadAll(toplevel)
+	if err != nil {
+		return nil, err
 	}
 
-	waylandProxyArgsJson, useWaylandProxy := os.LookupEnv("WAYLAND_PROXY_ARGS")
-	conf.UseWaylandProxy = useWaylandProxy
-	if useWaylandProxy {
-		conf.WaylandProxyArgs = readJsonArgs(waylandProxyArgsJson)
-		conf.WaylandProxyExe = envOr("WAYLAND_PROXY_EXE", "wayland-proxy-virtwl")
-		conf.WaylandProxySocketPath = filepath.Join(requiredEnv("XDG_RUNTIME_DIR"), "nixpak-wayland-"+instanceId())
+	lines := strings.Split(string(fileBytes), "\n")
 
-		if _, err := os.Stat(conf.WaylandProxySocketPath); err == nil {
-			panic("Wayland proxy socket already exists")
-		}
+	configFile, err := os.Open(lines[1])
+	if err != nil {
+		return nil, err
+	}
+	defer configFile.Close()
+
+	dec := json.NewDecoder(configFile)
+	conf := new(Config)
+	if err := dec.Decode(conf); err != nil {
+		return nil, err
 	}
 
-	return
+	conf.AppExe = lines[2]
+	conf.AppArgs = appArgs
+	return conf, nil
 }
