@@ -27,6 +27,9 @@ func StartBwrap(conf Config, flatpakMetadata FlatpakMetadata, waylandProxy Wayla
 	failed := true
 
 	bwrapArgs := append([]string{"--info-fd", "3", "--block-fd", "4"}, conf.Bwrap.Args...)
+	for _, path := range conf.StorePaths {
+		bwrapArgs = append(bwrapArgs, "--ro-bind", path, path)
+	}
 	bwrapArgs = append(bwrapArgs, []string{"--ro-bind", flatpakMetadata.MetadataDirectory + "/info", "/.flatpak-info"}...)
 	if conf.WaylandProxy.Enable {
 		waylandProxySocketPathInner := filepath.Join(requiredEnv("XDG_RUNTIME_DIR"), "nixpak-wayland")

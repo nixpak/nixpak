@@ -26,6 +26,7 @@ type FlatpakConfig struct {
 type Config struct {
 	AppExe       string
 	AppArgs      []string
+	StorePaths   []string           `json:"storePaths"`
 	Bwrap        ToolConfig         `json:"bwrap"`
 	Flatpak      FlatpakConfig      `json:"flatpak"`
 	DbusProxy    OptionalToolConfig `json:"dbusProxy"`
