@@ -60,6 +60,11 @@
           inherit mkNixPak;
           inherit (pkgs) busybox iproute2 curl;
         }).config.script;
+
+        isolated-store = (import ./examples/isolated-store.nix {
+          inherit mkNixPak;
+          inherit (pkgs) busybox writeShellScriptBin;
+        }).config.script;
       };
     };
   };
