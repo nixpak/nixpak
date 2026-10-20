@@ -86,13 +86,7 @@ let
   ];
   dbusProxyArgs = [ (env "DBUS_SESSION_BUS_ADDRESS") dbusOutsidePath ] ++ config.dbus.args ++ [ "--filter" ];
 
-  originalBwrapArgs = pkgs.writeText "bwrap-args.json" (builtins.toJSON bwrapArgs);
-  bwrapArgsJson = if config.bubblewrap.bindEntireStore then originalBwrapArgs else pkgs.runCommandLocal "bwrap-args.json" {
-    nativeBuildInputs = [ pkgs.jq ];
-  } ''
-    jq -nR '[inputs] | map("--ro-bind", ., .)' ${info}/store-paths > store-paths.json
-    jq -s '.[0] + .[1]' ${originalBwrapArgs} store-paths.json > $out
-  '';
+  bwrapArgsJson = pkgs.writeText "bwrap-args.json" (builtins.toJSON bwrapArgs);
 
   dbusProxyArgsJson = pkgs.writeText "xdg-dbus-proxy-args.json" (builtins.toJSON dbusProxyArgs);
 
@@ -102,7 +96,7 @@ let
 
   mainProgram = builtins.baseNameOf config.app.binPath;
 
-  launcherConfig = let
+  launcherConfigBase = let
     optionalFeature = cond: attrs: {
       enable = cond;
     } // optionalAttrs cond attrs;
@@ -127,6 +121,13 @@ let
       args = waylandProxyArgsJson;
     };
   });
+
+  launcherConfig = if config.bubblewrap.bindEntireStore then launcherConfigBase else pkgs.runCommandLocal "nixpak-config.json" {
+    nativeBuildInputs = [ pkgs.jq ];
+  } ''
+    jq -nR '[inputs] | map(select(length > 0))' ${info}/store-paths > store-paths.json
+    jq -s '.[0] + { storePaths: .[1] }' ${launcherConfigBase} store-paths.json > $out
+  '';
 
   mkWrapperScript = {
     name,
