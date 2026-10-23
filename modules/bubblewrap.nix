@@ -111,6 +111,6 @@ in {
         (sloth.envOr "XAUTHORITY" (sloth.concat' sloth.homeDir "/.Xauthority"))
         "/tmp/.X11-unix"
       ])
-      ++ (optional cfg.pulse (sloth.concat' sloth.runtimeDir "/pulse"));
+      ++ (optional cfg.pulse (sloth.concat' sloth.runtimeDir "/pulse/native"));
   };
 }
