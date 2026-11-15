@@ -22,6 +22,9 @@ in {
   options.bubblewrap = {
     network = mkEnableOption "network access in the sandbox" // { default = true; };
     shareIpc = mkEnableOption "host IPC namespace in the sandbox";
+    sharePid = mkEnableOption "host PID namespace in the sandbox";
+    shareUts = mkEnableOption "host UTS namespace in the sandbox";
+    shareCgroup = mkEnableOption "host cgroup namespace in the sandbox";
 
     bind.rw = mkOption {
       description = "Read-write paths to bind-mount into the sandbox.";
