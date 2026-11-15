@@ -55,11 +55,11 @@ let
   bwrapArgs = flatten [
     # This is the equivalent of --unshare-all, see bwrap(1) for details.
     "--unshare-user-try"
-    (optionals (!config.bubblewrap.shareIpc) "--unshare-ipc")
-    "--unshare-pid"
     "--unshare-net"
-    "--unshare-uts"
-    "--unshare-cgroup-try"
+    (optionals (!config.bubblewrap.shareIpc) "--unshare-ipc")
+    (optionals (!config.bubblewrap.sharePid) "--unshare-pid")
+    (optionals (!config.bubblewrap.shareUts) "--unshare-uts")
+    (optionals (!config.bubblewrap.shareCgroup) "--unshare-cgroup-try")
 
     bindPaths
     bindRoPaths
@@ -120,6 +120,7 @@ let
       exe = "${config.waylandProxy.package}/bin/wayland-proxy-virtwl";
       args = waylandProxyArgsJson;
     };
+    inherit (config.bubblewrap) sharePgid;
   });
 
   launcherConfig = if config.bubblewrap.bindEntireStore then launcherConfigBase else pkgs.runCommandLocal "nixpak-config.json" {

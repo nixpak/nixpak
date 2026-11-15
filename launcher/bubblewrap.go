@@ -41,7 +41,7 @@ func StartBwrap(conf Config, flatpakMetadata FlatpakMetadata, waylandProxy Wayla
 	bwrapArgs = append(bwrapArgs, conf.AppArgs...)
 
 	cmd := exec.Command(conf.Bwrap.Exe, bwrapArgs...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: !conf.SharePgid}
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
