@@ -120,6 +120,7 @@ let
       exe = "${config.waylandProxy.package}/bin/wayland-proxy-virtwl";
       args = waylandProxyArgsJson;
     };
+    inherit (config.bubblewrap) sharePgid;
   });
 
   launcherConfig = if config.bubblewrap.bindEntireStore then launcherConfigBase else pkgs.runCommandLocal "nixpak-config.json" {

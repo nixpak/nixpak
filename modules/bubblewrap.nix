@@ -99,6 +99,12 @@ in {
       type = types.bool;
       default = false;
     };
+
+    sharePgid = mkOption {
+      description = "Whether to reuse the launcher's process group.";
+      type = types.bool;
+      default = false;
+    };
   };
 
   config = {

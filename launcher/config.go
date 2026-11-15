@@ -32,6 +32,7 @@ type Config struct {
 	DbusProxy    OptionalToolConfig `json:"dbusProxy"`
 	Pasta        OptionalToolConfig `json:"pasta"`
 	WaylandProxy OptionalToolConfig `json:"waylandProxy"`
+	SharePgid    bool               `json:"sharePgid"`
 }
 
 func readConfig(path string, appArgs []string) (*Config, error) {
